@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" crossorigin="anonymous"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        @keyframes typing {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        .typing-indicator {
+            animation: typing 1.5s infinite;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .fade-out {
+            animation: fadeOut 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
+
+        .message-bubble {
+            transition: all 0.3s ease;
+        }
+
+        .message-bubble:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .voice-recording {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.7;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+    <div id="app"></div>
+
+    <!-- Load configuration first -->
+    <script src="config.js?v=9"></script>
+    
+    <!-- Embedded CONFIG as fallback -->
+    <script>
+        // Ensure CONFIG object is always available
+        if (typeof CONFIG === 'undefined') {
+            console.log('🔄 Creating embedded CONFIG object...');
+            window.CONFIG = {
+                GEMINI_API_KEY: 'AIzaSyB-mECJerfCzwB9JUO4cp0EJxmIzl6dq0g',
+                GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+                MONGODB_URI: 'mongodb+srv://keswani399:270778eshnali@cluster0.fvmbrtz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0',
+                MONGODB_OPTIONS: {
+                    useNewUrlParser: true,
+                    useUnifiedTopology: true,
+                    maxPoolSize: 10,
+                    serverSelectionTimeoutMS: 5000,
+                    socketTimeoutMS: 45000,
+                },
+                AUTO_SPEAK_AI_RESPONSES: true,
+                AUTO_SAVE_INTERVAL: 30000,
+                MAX_MESSAGE_LENGTH: 1000,
+                VOICE_RATE: 0.9,
+                VOICE_PITCH: 1,
+                VOICE_VOLUME: 1.0,
+                VOICE_LANG: 'en-US'
+            };
+            console.log('✅ Embedded CONFIG object created');
+        } else {
+            // Ensure CONFIG is also on window object
+            window.CONFIG = CONFIG;
+        }
+        
+        console.log('🔍 CONFIG check after loading:');
+        console.log('  - CONFIG exists:', typeof CONFIG !== 'undefined');
+        console.log('  - window.CONFIG exists:', typeof window.CONFIG !== 'undefined');
+        console.log('  - CONFIG.GEMINI_API_KEY exists:', !!CONFIG?.GEMINI_API_KEY);
+        console.log('  - API Key value:', CONFIG?.GEMINI_API_KEY);
+        console.log('  - API Key length:', CONFIG?.GEMINI_API_KEY?.length);
+        console.log('  - API Key starts with AIza:', CONFIG?.GEMINI_API_KEY?.startsWith('AIza'));
+    </script>
+    
+    <!-- Load utility functions -->
+    <script src="utils/helpers.js?v=9"></script>
+    <script>
+        if (typeof utils === 'undefined') {
+            console.error('❌ utils not loaded properly');
+        } else {
+            console.log('✅ utils loaded successfully');
+        }
+    </script>
+    
+    <!-- Load services -->
+    <script src="services/databaseService.js?v=9"></script>
+    <script>
+        if (typeof databaseService === 'undefined') {
+            console.error('❌ databaseService not loaded properly');
+        } else {
+            console.log('✅ databaseService loaded successfully');
+        }
+    </script>
+    
+    <script src="services/authService.js?v=9"></script>
+    <script>
+        if (typeof authService === 'undefined') {
+            console.error('❌ authService not loaded properly');
+        } else {
+            console.log('✅ authService loaded successfully');
+        }
+    </script>
+    
+    <script src="services/aiService.js?v=9"></script>
+    <script>
+        if (typeof aiService === 'undefined') {
+            console.error('❌ aiService not loaded properly');
+        } else {
+            console.log('✅ aiService loaded successfully');
+        }
+    </script>
+    
+    <script src="services/voiceService.js?v=9"></script>
+    <script>
+        if (typeof voiceService === 'undefined') {
+            console.error('❌ voiceService not loaded properly');
+        } else {
+            console.log('✅ voiceService loaded successfully');
+        }
+    </script>
+    
+    <script src="services/mongoService.js?v=9"></script>
+    <script>
+        if (typeof mongoService === 'undefined') {
+            console.error('❌ mongoService not loaded properly');
+        } else {
+            console.log('✅ mongoService loaded successfully');
+        }
+    </script>
+    
+    <!-- Load components -->
+    <script src="components/Component.js?v=9"></script>
+    <script>
+        if (typeof Component === 'undefined') {
+            console.error('❌ Component not loaded properly');
+        } else {
+            console.log('✅ Component loaded successfully');
+        }
+    </script>
+    
+    <script src="components/LoginForm.js?v=9"></script>
+    <script>
+        if (typeof LoginForm === 'undefined') {
+            console.error('❌ LoginForm not loaded properly');
+        } else {
+            console.log('✅ LoginForm loaded successfully');
+        }
+    </script>
+    
+    <script src="components/ChatApp.js?v=9"></script>
+    <script>
+        if (typeof ChatApp === 'undefined') {
+            console.error('❌ ChatApp not loaded properly');
+        } else {
+            console.log('✅ ChatApp loaded successfully');
+        }
+    </script>
+    
+    <script src="components/App.js?v=9"></script>
+    <script>
+        if (typeof App === 'undefined') {
+            console.error('❌ App not loaded properly');
+        } else {
+            console.log('✅ App loaded successfully');
+        }
+    </script>
+
+    <!-- Main application script -->
+    <script>
+        // Verify all required services are loaded
+        function verifyServices() {
+            const required = [
+                'CONFIG', 'utils', 'databaseService', 'authService', 
+                'aiService', 'voiceService', 'mongoService', 'App'
+            ];
+            
+            const missing = [];
+            
+            required.forEach(service => {
+                let exists = false;
+                
+                // Special handling for CONFIG object
+                if (service === 'CONFIG') {
+                    exists = typeof CONFIG !== 'undefined';
+                } else {
+                    exists = typeof window[service] !== 'undefined';
+                }
+                
+                if (!exists) {
+                    missing.push(service);
+                }
+            });
+            
+            if (missing.length > 0) {
+                console.error('❌ Missing required services:', missing);
+                return false;
+            }
+            
+            console.log('✅ All required services loaded successfully');
+            return true;
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Starting AI Chatbot Application...');
+            
+            // Wait a bit for all scripts to load
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Test all global objects individually
+            console.log('🔍 Testing global objects:');
+            console.log('  - CONFIG:', typeof CONFIG !== 'undefined' ? '✅' : '❌');
+            console.log('  - window.CONFIG:', typeof window.CONFIG !== 'undefined' ? '✅' : '❌');
+            console.log('  - utils:', typeof utils !== 'undefined' ? '✅' : '❌');
+            console.log('  - databaseService:', typeof databaseService !== 'undefined' ? '✅' : '❌');
+            console.log('  - authService:', typeof authService !== 'undefined' ? '✅' : '❌');
+            console.log('  - aiService:', typeof aiService !== 'undefined' ? '✅' : '❌');
+            console.log('  - voiceService:', typeof voiceService !== 'undefined' ? '✅' : '❌');
+            console.log('  - mongoService:', typeof mongoService !== 'undefined' ? '✅' : '❌');
+            console.log('  - App:', typeof App !== 'undefined' ? '✅' : '❌');
+            
+            // Verify all services are loaded
+            if (!verifyServices()) {
+                console.error('❌ Application initialization failed - missing services');
+                console.log('🔄 Retrying in 1 second...');
+                
+                // Retry after 1 second
+                setTimeout(async () => {
+                    if (!verifyServices()) {
+                        console.error('❌ Application initialization failed after retry');
+                        return;
+                    }
+                    await initializeApp();
+                }, 1000);
+                return;
+            }
+            
+            await initializeApp();
+        });
+        
+        // Separate initialization function
+        async function initializeApp() {
+            // Add global error handlers
+            window.addEventListener('error', (event) => {
+                console.error('Global JavaScript error:', event.error);
+                console.error('Error details:', {
+                    message: event.message,
+                    filename: event.filename,
+                    lineno: event.lineno,
+                    colno: event.colno
+                });
+                
+                // Show user-friendly error message
+                if (window.utils && window.utils.showToast) {
+                    window.utils.showToast('An error occurred. Chat should continue working.', 'warning');
+                }
+            });
+
+            window.addEventListener('unhandledrejection', (event) => {
+                console.error('Unhandled promise rejection:', event.reason);
+                
+                // Show user-friendly error message
+                if (window.utils && window.utils.showToast) {
+                    window.utils.showToast('A network error occurred. Please try again.', 'warning');
+                }
+                
+                // Prevent the default behavior (logging to console)
+                event.preventDefault();
+            });
+
+            // Initialize MongoDB connection
+            try {
+                const mongoConnected = await mongoService.connect();
+                if (mongoConnected) {
+                    console.log('✅ MongoDB connected successfully!');
+                    
+                    // Migrate existing local data to MongoDB if needed
+                    if (databaseService.users.length > 0) {
+                        console.log('🔄 Migrating local data to MongoDB...');
+                        await mongoService.migrateFromLocalStorage(
+                            databaseService.users, 
+                            databaseService.chats
+                        );
+                    }
+                } else {
+                    console.log('ℹ️ Using local storage (MongoDB not configured)');
+                }
+            } catch (error) {
+                console.error('❌ MongoDB initialization failed:', error);
+                console.log('ℹ️ Continuing with local storage...');
+            }
+
+            // Create demo user if no users exist
+            if (databaseService.users.length === 0) {
+                const demoUser = databaseService.createUser({
+                    name: 'Demo User',
+                    email: 'demo@example.com',
+                    password: 'demo123'
+                });
+
+                // Add some demo messages
+                databaseService.addMessage(demoUser.id, {
+                    type: 'user',
+                    content: 'Hello! Can you help me understand how this chatbot works?'
+                });
+
+                databaseService.addMessage(demoUser.id, {
+                    type: 'ai',
+                    content: 'Hello! I\'d be happy to help you understand how this chatbot works. This is a demonstration AI chatbot with the following features:\n\n• Real-time chat interface with message history\n• Voice input using speech recognition\n• Text-to-speech for AI responses\n• Copy messages to clipboard\n• Export chat history as PDF, TXT, or JSON\n• User authentication and secure login\n• MongoDB integration for cloud storage\n• Responsive design that works on mobile and desktop\n\nYou can interact with me by typing messages, using voice input (click the microphone), or asking me questions about various topics. Try asking me something!'
+                });
+            }
+
+            // Initialize the main app
+            window.app = new App();
+            window.app.render();
+
+            // Handle browser back/forward
+            window.addEventListener('popstate', () => {
+                window.app.render();
+            });
+
+            // Auto-save chat messages periodically
+            setInterval(() => {
+                if (authService.isAuthenticated()) {
+                    databaseService.saveChats();
+                }
+            }, CONFIG.AUTO_SAVE_INTERVAL);
+
+            // Handle page visibility change to stop speech when tab is not active
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    voiceService.stopSpeaking();
+                    voiceService.stopListening();
+                    if (window.app.chatApp) {
+                        window.app.chatApp.setState({
+                            isRecording: false,
+                            speakingMessageId: null
+                        });
+                    }
+                }
+            });
+
+            // Service Worker for offline functionality (basic)
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('data:text/javascript,')
+                    .then(() => console.log('Service Worker registered'))
+                    .catch(() => console.log('Service Worker registration failed'));
+            }
+
+            console.log('✅ AI Chatbot Application Loaded Successfully!');
+            console.log('🎯 Demo Login: demo@example.com / demo123');
+            
+            // Check API key configuration and test connection
+            const apiStatus = aiService.getApiStatus();
+            if (!apiStatus.isConfigured) {
+                console.warn('⚠️ Please configure your Gemini API key in config.js to enable AI responses.');
+                utils.showToast('Please configure your Gemini API key in config.js', 'warning');
+            } else {
+                console.log('✅ Gemini API key is properly configured');
+                console.log('🔑 API Key:', apiStatus.apiKey);
+                
+                // Test the API connection
+                const isWorking = await aiService.testConnection();
+                if (isWorking) {
+                    console.log('🎉 Gemini API is working correctly!');
+                    utils.showToast('Gemini API connected successfully!', 'success');
+                } else {
+                    console.warn('⚠️ API key is configured but connection test failed');
+                    utils.showToast('API key configured but connection failed. Check your internet.', 'warning');
+                }
+            }
+
+            // Check MongoDB configuration
+            if (!CONFIG.MONGODB_URI || CONFIG.MONGODB_URI.includes('username:password')) {
+                console.warn('⚠️ MongoDB URI not configured. Using local storage only.');
+                console.log('📖 See MONGODB_SETUP.md for setup instructions.');
+            }
+        }
+
+        // Graceful shutdown
+        window.addEventListener('beforeunload', async () => {
+            if (mongoService && mongoService.isConnected) {
+                await mongoService.disconnect();
+            }
+        });
+    </script>
+</body>
+
+</html>

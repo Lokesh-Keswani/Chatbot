@@ -1,0 +1,41 @@
+{
+  "name": "ai-chatbot",
+  "version": "1.0.0",
+  "description": "A modern AI chatbot application with voice capabilities and secure authentication",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "serve": "python -m http.server 8000",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ai",
+    "chatbot",
+    "gemini",
+    "voice",
+    "speech",
+    "authentication",
+    "mongodb",
+    "javascript",
+    "html5",
+    "css3"
+  ],
+  "author": "AI Chatbot Developer",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "mongodb": "^6.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ai-chatbot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/ai-chatbot/issues"
+  },
+  "homepage": "https://github.com/yourusername/ai-chatbot#readme"
+}
