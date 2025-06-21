@@ -244,3 +244,4 @@ If you encounter any issues or have questions:
 **Made with ❤️ by [Your Name]**
 
 *A modern AI chatbot that brings conversational AI to your browser with a beautiful, responsive interface.* 
+commit test through cursor
