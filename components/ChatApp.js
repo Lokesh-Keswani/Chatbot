@@ -2,8 +2,13 @@
 class ChatApp {
     constructor(props) {
         this.props = props;
+        
+        // Get messages and remove any duplicates
+        let messages = databaseService.getUserChats(props.user.id);
+        messages = this.removeDuplicateMessages(messages);
+        
         this.state = {
-            messages: databaseService.getUserChats(props.user.id),
+            messages: messages,
             inputMessage: '',
             isRecording: false,
             isTyping: false,
@@ -15,6 +20,7 @@ class ChatApp {
         window.chatApp = this;
         
         console.log('🎯 ChatApp initialized with', this.state.messages.length, 'messages');
+        console.log('📊 Messages:', this.state.messages.map(m => ({ type: m.type, content: m.content.substring(0, 50) + '...', timestamp: m.timestamp })));
     }
 
     mount(container) {
@@ -23,6 +29,42 @@ class ChatApp {
         this.setupEventListeners();
         this.loadMessages();
         console.log('✅ ChatApp mounted successfully');
+    }
+
+    removeDuplicateMessages(messages) {
+        try {
+            if (!messages || messages.length === 0) return messages;
+            
+            // Remove duplicates based on content, type, and timestamp
+            const uniqueMessages = [];
+            const seen = new Set();
+            
+            for (const message of messages) {
+                // Create a unique key based on content, type, and timestamp
+                const key = `${message.type}-${message.content}-${message.timestamp}`;
+                
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueMessages.push(message);
+                } else {
+                    console.log('🗑️ Removing duplicate message:', message.content.substring(0, 50) + '...');
+                }
+            }
+            
+            console.log(`🔍 Duplicate check: ${messages.length} → ${uniqueMessages.length} messages`);
+            
+            // If we removed duplicates, update the database
+            if (uniqueMessages.length !== messages.length) {
+                console.log('💾 Updating database with deduplicated messages...');
+                databaseService.chats[this.props.user.id] = uniqueMessages;
+                databaseService.saveChats();
+            }
+            
+            return uniqueMessages;
+        } catch (error) {
+            console.error('Error removing duplicate messages:', error);
+            return messages;
+        }
     }
 
     render() {
@@ -66,7 +108,7 @@ class ChatApp {
                 </div>
                 
                 <!-- Chat Messages Container -->
-                <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-2">
                     <!-- Messages will be loaded here -->
                 </div>
                 
@@ -202,7 +244,7 @@ class ChatApp {
             if (!chatContainer) return;
 
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message-bubble fade-in ${message.type === 'user' ? 'ml-auto' : 'mr-auto'} max-w-3xl`;
+            messageDiv.className = `message-bubble fade-in ${message.type === 'user' ? 'ml-auto' : 'mr-auto'} max-w-3xl mb-1`;
             messageDiv.innerHTML = `
                 <div class="flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} items-start space-x-3">
                     ${message.type === 'ai' ? `
@@ -211,12 +253,12 @@ class ChatApp {
                         </div>
                     ` : ''}
                     
-                    <div class="relative ${message.type === 'user' ? 'bg-blue-500 text-white' : 'bg-white'} rounded-2xl px-4 py-3 shadow-sm">
-                        <div class="text-sm leading-relaxed" style="white-space:pre-wrap;">${this.formatContent(message.content)}</div>
-                        <div class="text-xs opacity-70 mt-1">${this.formatTime(message.timestamp)}</div>
+                    <div class="relative ${message.type === 'user' ? 'bg-blue-500 text-white' : 'bg-white'} rounded-2xl px-4 py-3 shadow-sm max-w-full">
+                        <div class="text-sm leading-relaxed message-content">${this.formatContent(message.content)}</div>
+                        <div class="text-xs opacity-70 mt-2">${this.formatTime(message.timestamp)}</div>
                         
                         ${message.type === 'ai' ? `
-                            <div class="flex items-center space-x-2 mt-3 pt-2 border-t border-gray-100">
+                            <div class="flex items-center space-x-2 mt-2 pt-2 border-t border-gray-100">
                                 <button onclick="chatApp.speakMessage(${index})" class="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors flex items-center space-x-1">
                                     <span>🔉</span>
                                     <span>Speak</span>
@@ -247,20 +289,80 @@ class ChatApp {
         try {
             if (!content || !content.trim()) return '';
             
+            // Clean up the content first
+            let cleanContent = content.trim();
+            
             // Use marked library if available for markdown parsing
             if (typeof marked !== 'undefined') {
-                return marked.parse(content);
+                const rendered = marked.parse(cleanContent);
+                // Clean up the rendered HTML properly
+                return rendered
+                    .replace(/^<p>/, '') // Remove opening p tag at start
+                    .replace(/<\/p>$/, '') // Remove closing p tag at end
+                    .replace(/<p>/g, '<br><br>') // Convert p tags to double breaks
+                    .replace(/<\/p>/g, '') // Remove closing p tags
+                    .replace(/^\s*<br><br>/, '') // Remove leading breaks
+                    .replace(/<br><br>\s*$/, '') // Remove trailing breaks
+                    .trim();
             }
             
-            // Basic formatting fallback
-            return content
+            // Basic formatting fallback - simple and clean
+            return cleanContent
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/`(.*?)`/g, '<code>$1</code>')
-                .replace(/\n/g, '<br>');
+                .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-xs">$1</code>')
+                .replace(/\n\n/g, '<br><br>') // Double newlines to double breaks
+                .replace(/\n/g, '<br>') // Single newlines to single breaks
+                .trim();
         } catch (error) {
             console.error('Error formatting content:', error);
-            return content || '';
+            return content ? content.trim() : '';
+        }
+    }
+
+    formatContentForSpeech(content) {
+        try {
+            if (!content || !content.trim()) return '';
+            
+            // Clean content for speech synthesis (remove ALL markdown syntax)
+            let cleanContent = content.trim();
+            
+            // Remove markdown formatting for speech - comprehensive cleaning
+            return cleanContent
+                // Remove bold and italic asterisks (both single and double)
+                .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+                // Remove any remaining asterisks
+                .replace(/\*/g, '')
+                // Remove code backticks
+                .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
+                // Remove any remaining backticks
+                .replace(/`/g, '')
+                // Remove heading hashes
+                .replace(/#{1,6}\s*/g, '')
+                // Convert links to just text
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                // Remove strikethrough
+                .replace(/~~([^~]+)~~/g, '$1')
+                // Remove underscores (alternative italic/bold)
+                .replace(/_([^_]+)_/g, '$1')
+                .replace(/__([^_]+)__/g, '$1')
+                // Remove any remaining underscores
+                .replace(/_/g, ' ')
+                // Convert bullet points and lists
+                .replace(/^\s*[-*+]\s+/gm, '')
+                .replace(/^\s*\d+\.\s+/gm, '')
+                // Convert double newlines to periods for natural speech pauses
+                .replace(/\n\s*\n/g, '. ')
+                // Convert single newlines to spaces
+                .replace(/\n/g, ' ')
+                // Clean up multiple spaces
+                .replace(/\s+/g, ' ')
+                // Remove any remaining special characters that might interfere
+                .replace(/[#|>]/g, '')
+                .trim();
+        } catch (error) {
+            console.error('Error formatting content for speech:', error);
+            return content ? content.trim() : '';
         }
     }
 
@@ -312,9 +414,11 @@ class ChatApp {
                 timestamp: Date.now()
             };
 
-            this.state.messages.push(userMessage);
-            databaseService.addMessage(this.props.user.id, userMessage);
-            this.addMessageToChat(userMessage, this.state.messages.length - 1);
+            // Add to database first and get the message with ID
+            const savedUserMessage = databaseService.addMessage(this.props.user.id, userMessage);
+            this.state.messages.push(savedUserMessage);
+            console.log('✅ User message added:', savedUserMessage.content.substring(0, 50) + '...', 'Total messages:', this.state.messages.length);
+            this.addMessageToChat(savedUserMessage, this.state.messages.length - 1);
             this.scrollToBottom();
 
             // Show typing indicator
@@ -333,9 +437,11 @@ class ChatApp {
                     timestamp: Date.now()
                 };
 
-                this.state.messages.push(aiMessage);
-                databaseService.addMessage(this.props.user.id, aiMessage);
-                this.addMessageToChat(aiMessage, this.state.messages.length - 1);
+                // Add to database first and get the message with ID
+                const savedAiMessage = databaseService.addMessage(this.props.user.id, aiMessage);
+                this.state.messages.push(savedAiMessage);
+                console.log('✅ AI message added:', savedAiMessage.content.substring(0, 50) + '...', 'Total messages:', this.state.messages.length);
+                this.addMessageToChat(savedAiMessage, this.state.messages.length - 1);
                 this.scrollToBottom();
 
                 // Auto-speak if enabled
@@ -363,7 +469,7 @@ class ChatApp {
 
             const typingDiv = document.createElement('div');
             typingDiv.id = 'typing-indicator';
-            typingDiv.className = 'mr-auto max-w-3xl fade-in';
+            typingDiv.className = 'mr-auto max-w-3xl fade-in mb-1';
             typingDiv.innerHTML = `
                 <div class="flex justify-start items-start space-x-3">
                     <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -421,13 +527,19 @@ class ChatApp {
 
             const result = await voiceService.startListening();
             
+            console.log('🎤 Voice input captured:', result);
+            console.log('🎤 Voice input length:', result?.length, 'characters');
+            
             if (result && result.trim()) {
                 const input = document.getElementById('message-input');
                 if (input) {
                     input.value = result;
                     this.state.inputMessage = result;
                     this.updateSendButton();
+                    console.log('✅ Voice input set in message field');
                 }
+            } else {
+                console.log('⚠️ No voice input captured or empty result');
             }
 
             this.state.isRecording = false;
@@ -482,13 +594,19 @@ class ChatApp {
                 voiceService.stopSpeaking();
                 this.state.speakingMessageId = index;
                 
-                voiceService.speak(message.content, {
+                // Clean the content for speech (remove markdown syntax)
+                const speechContent = this.formatContentForSpeech(message.content);
+                
+                voiceService.speak(speechContent, {
                     onEnd: () => {
                         this.state.speakingMessageId = null;
                     },
-                    onError: () => {
+                    onError: (event) => {
                         this.state.speakingMessageId = null;
-                        utils.showToast('Speech synthesis failed', 'error');
+                        // Only show error for actual failures, not interruptions
+                        if (event.error !== 'interrupted' && event.error !== 'canceled') {
+                            utils.showToast('Speech synthesis failed', 'error');
+                        }
                     }
                 });
             }
@@ -550,4 +668,4 @@ class ChatApp {
             utils.showToast('Failed to clear chat', 'error');
         }
     }
-} 
+}

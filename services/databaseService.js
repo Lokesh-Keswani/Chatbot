@@ -87,7 +87,7 @@ class DatabaseService {
         const messageWithId = {
             id: uuid.v4(),
             ...message,
-            timestamp: new Date().toISOString()
+            timestamp: message.timestamp || Date.now()
         };
         
         this.chats[userId].push(messageWithId);

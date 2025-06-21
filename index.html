@@ -99,6 +99,51 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #a8a8a8;
         }
+
+        /* Message content formatting */
+        .message-content {
+            line-height: 1.5;
+        }
+
+        .message-content p {
+            margin: 0;
+            padding: 0;
+        }
+
+        .message-content p + p {
+            margin-top: 0.5rem;
+        }
+
+        .message-content ul, .message-content ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .message-content li {
+            margin: 0.25rem 0;
+        }
+
+        .message-content code {
+            background-color: rgba(0, 0, 0, 0.1);
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .message-content pre {
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message-content blockquote {
+            border-left: 3px solid #e5e7eb;
+            padding-left: 1rem;
+            margin: 0.5rem 0;
+            font-style: italic;
+        }
     </style>
 </head>
 
@@ -106,7 +151,7 @@
     <div id="app"></div>
 
     <!-- Load configuration first -->
-    <script src="config.js?v=9"></script>
+    <script src="config.js?v=10"></script>
     
     <!-- Embedded CONFIG as fallback -->
     <script>
@@ -148,7 +193,7 @@
     </script>
     
     <!-- Load utility functions -->
-    <script src="utils/helpers.js?v=9"></script>
+    <script src="utils/helpers.js?v=10"></script>
     <script>
         if (typeof utils === 'undefined') {
             console.error('❌ utils not loaded properly');
@@ -158,7 +203,7 @@
     </script>
     
     <!-- Load services -->
-    <script src="services/databaseService.js?v=9"></script>
+    <script src="services/databaseService.js?v=15"></script>
     <script>
         if (typeof databaseService === 'undefined') {
             console.error('❌ databaseService not loaded properly');
@@ -167,7 +212,7 @@
         }
     </script>
     
-    <script src="services/authService.js?v=9"></script>
+    <script src="services/authService.js?v=10"></script>
     <script>
         if (typeof authService === 'undefined') {
             console.error('❌ authService not loaded properly');
@@ -176,7 +221,7 @@
         }
     </script>
     
-    <script src="services/aiService.js?v=9"></script>
+    <script src="services/aiService.js?v=20"></script>
     <script>
         if (typeof aiService === 'undefined') {
             console.error('❌ aiService not loaded properly');
@@ -185,7 +230,7 @@
         }
     </script>
     
-    <script src="services/voiceService.js?v=9"></script>
+    <script src="services/voiceService.js?v=19"></script>
     <script>
         if (typeof voiceService === 'undefined') {
             console.error('❌ voiceService not loaded properly');
@@ -194,7 +239,7 @@
         }
     </script>
     
-    <script src="services/mongoService.js?v=9"></script>
+    <script src="services/mongoService.js?v=10"></script>
     <script>
         if (typeof mongoService === 'undefined') {
             console.error('❌ mongoService not loaded properly');
@@ -204,7 +249,7 @@
     </script>
     
     <!-- Load components -->
-    <script src="components/Component.js?v=9"></script>
+    <script src="components/Component.js?v=10"></script>
     <script>
         if (typeof Component === 'undefined') {
             console.error('❌ Component not loaded properly');
@@ -213,25 +258,25 @@
         }
     </script>
     
-    <script src="components/LoginForm.js?v=9"></script>
+    <script src="components/LoginForm.js?v=10"></script>
     <script>
         if (typeof LoginForm === 'undefined') {
             console.error('❌ LoginForm not loaded properly');
-        } else {
+                } else {
             console.log('✅ LoginForm loaded successfully');
         }
     </script>
     
-    <script src="components/ChatApp.js?v=9"></script>
+    <script src="components/ChatApp.js?v=20"></script>
     <script>
         if (typeof ChatApp === 'undefined') {
             console.error('❌ ChatApp not loaded properly');
-        } else {
+                } else {
             console.log('✅ ChatApp loaded successfully');
         }
     </script>
     
-    <script src="components/App.js?v=9"></script>
+    <script src="components/App.js?v=10"></script>
     <script>
         if (typeof App === 'undefined') {
             console.error('❌ App not loaded properly');
@@ -315,6 +360,11 @@
         
         // Separate initialization function
         async function initializeApp() {
+            // TEMPORARY: Clear only chat data to fix duplication issue
+            console.log('🧹 Clearing chat data to fix duplicates...');
+            localStorage.removeItem('chatbot_chats');
+            console.log('✅ Chat data cleared');
+            
             // Add global error handlers
             window.addEventListener('error', (event) => {
                 console.error('Global JavaScript error:', event.error);
@@ -380,7 +430,7 @@
                 });
 
                 databaseService.addMessage(demoUser.id, {
-                    type: 'ai',
+                        type: 'ai',
                     content: 'Hello! I\'d be happy to help you understand how this chatbot works. This is a demonstration AI chatbot with the following features:\n\n• Real-time chat interface with message history\n• Voice input using speech recognition\n• Text-to-speech for AI responses\n• Copy messages to clipboard\n• Export chat history as PDF, TXT, or JSON\n• User authentication and secure login\n• MongoDB integration for cloud storage\n• Responsive design that works on mobile and desktop\n\nYou can interact with me by typing messages, using voice input (click the microphone), or asking me questions about various topics. Try asking me something!'
                 });
             }
@@ -389,38 +439,38 @@
             window.app = new App();
             window.app.render();
 
-            // Handle browser back/forward
-            window.addEventListener('popstate', () => {
+        // Handle browser back/forward
+        window.addEventListener('popstate', () => {
                 window.app.render();
-            });
+        });
 
             // Auto-save chat messages periodically
-            setInterval(() => {
-                if (authService.isAuthenticated()) {
+        setInterval(() => {
+            if (authService.isAuthenticated()) {
                     databaseService.saveChats();
-                }
+            }
             }, CONFIG.AUTO_SAVE_INTERVAL);
 
-            // Handle page visibility change to stop speech when tab is not active
-            document.addEventListener('visibilitychange', () => {
-                if (document.hidden) {
-                    voiceService.stopSpeaking();
-                    voiceService.stopListening();
-                    if (window.app.chatApp) {
-                        window.app.chatApp.setState({
-                            isRecording: false,
-                            speakingMessageId: null
-                        });
-                    }
+        // Handle page visibility change to stop speech when tab is not active
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                voiceService.stopSpeaking();
+                voiceService.stopListening();
+                    if (window.app && window.app.chatApp) {
+                        // Update the ChatApp state directly instead of using setState
+                        window.app.chatApp.state.isRecording = false;
+                        window.app.chatApp.state.speakingMessageId = null;
+                        window.app.chatApp.updateVoiceButton();
                 }
-            });
-
-            // Service Worker for offline functionality (basic)
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('data:text/javascript,')
-                    .then(() => console.log('Service Worker registered'))
-                    .catch(() => console.log('Service Worker registration failed'));
             }
+        });
+
+        // Service Worker for offline functionality (basic)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('data:text/javascript,')
+                .then(() => console.log('Service Worker registered'))
+                .catch(() => console.log('Service Worker registration failed'));
+        }
 
             console.log('✅ AI Chatbot Application Loaded Successfully!');
             console.log('🎯 Demo Login: demo@example.com / demo123');

@@ -43,7 +43,7 @@ class AIService {
                         temperature: 0.7,
                         topK: 40,
                         topP: 0.95,
-                        maxOutputTokens: 1024,
+                        maxOutputTokens: 2048,
                     }
                 })
             });
@@ -67,10 +67,22 @@ class AIService {
             
             if (!aiResponse) {
                 console.warn('⚠️ No AI response in data');
+                console.log('🔍 Full API response data:', JSON.stringify(data, null, 2));
                 return "Sorry, I couldn't generate a response at the moment. Please try again.";
             }
 
             console.log('✅ AI response generated successfully');
+            console.log('📝 Response length:', aiResponse.length, 'characters');
+            console.log('📝 Response preview:', aiResponse.substring(0, 100) + (aiResponse.length > 100 ? '...' : ''));
+            
+            // Check if response was potentially truncated
+            if (data?.candidates?.[0]?.finishReason) {
+                console.log('🏁 Finish reason:', data.candidates[0].finishReason);
+                if (data.candidates[0].finishReason === 'MAX_TOKENS') {
+                    console.warn('⚠️ Response was truncated due to max tokens limit');
+                }
+            }
+            
             return aiResponse;
 
         } catch (error) {
