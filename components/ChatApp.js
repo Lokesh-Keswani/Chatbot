@@ -3,8 +3,12 @@ class ChatApp {
     constructor(props) {
         this.props = props;
         
-        // Get messages and remove any duplicates
-        let messages = databaseService.getUserChats(props.user.id);
+        // Get chat sessions and set up initial state
+        const chatSessions = databaseService.getUserChatSessions(props.user.id);
+        const currentChatId = chatSessions.length > 0 ? chatSessions[0].id : null;
+        
+        // Get messages for current chat and remove any duplicates
+        let messages = currentChatId ? databaseService.getUserChats(props.user.id, currentChatId) : [];
         messages = this.removeDuplicateMessages(messages);
         
         this.state = {
@@ -13,14 +17,18 @@ class ChatApp {
             isRecording: false,
             isTyping: false,
             speakingMessageId: null,
-            autoSpeak: CONFIG.AUTO_SPEAK_AI_RESPONSES
+            autoSpeak: CONFIG.AUTO_SPEAK_AI_RESPONSES,
+            chatSessions: chatSessions,
+            currentChatId: currentChatId,
+            sidebarCollapsed: false
         };
         
         // Make globally available
         window.chatApp = this;
         
         console.log('🎯 ChatApp initialized with', this.state.messages.length, 'messages');
-        console.log('📊 Messages:', this.state.messages.map(m => ({ type: m.type, content: m.content.substring(0, 50) + '...', timestamp: m.timestamp })));
+        console.log('📊 Current chat:', currentChatId);
+        console.log('📊 Total sessions:', chatSessions.length);
     }
 
     mount(container) {
@@ -72,74 +80,178 @@ class ChatApp {
         
         const stats = databaseService.getUserStats(this.props.user.id);
         const apiStatus = aiService.getApiStatus();
+        const currentChat = this.state.currentChatId ? 
+            this.state.chatSessions.find(chat => chat.id === this.state.currentChatId) : null;
         
         this.container.innerHTML = `
-            <div class="flex flex-col h-screen bg-gray-50">
-                <!-- Header -->
-                <div class="bg-white shadow-md px-6 py-4 flex justify-between items-center">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
-                            ${this.props.user.name.charAt(0).toUpperCase()}
+            <div class="flex h-screen bg-gray-50">
+                <!-- Sidebar -->
+                <div id="sidebar" class="w-80 bg-white border-r border-gray-200 flex flex-col ${this.state.sidebarCollapsed ? 'hidden' : ''}">
+                    <!-- Sidebar Header -->
+                    <div class="p-4 border-b border-gray-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    ${this.props.user.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <h2 class="font-semibold text-gray-800">${this.props.user.name}</h2>
+                                    <p class="text-xs text-gray-500">${stats.totalSessions} chats • ${stats.totalMessages} messages</p>
+                                </div>
+                            </div>
+                            <button id="logout-btn" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Logout">
+                                <span class="text-lg">🚪</span>
+                            </button>
                         </div>
-                        <div>
-                            <h1 class="text-xl font-bold text-gray-800">AI Chatbot</h1>
-                            <p class="text-sm text-gray-600">Welcome, ${this.props.user.name}!</p>
-                            <div class="flex items-center space-x-4 text-xs text-gray-500">
-                                <span>${stats.totalMessages} messages • Last active: ${stats.lastActivity ? utils.formatTimestamp(stats.lastActivity) : 'Never'}</span>
-                                <span class="flex items-center space-x-1">
-                                    <span class="w-2 h-2 rounded-full ${apiStatus.isConfigured ? 'bg-green-500' : 'bg-red-500'}"></span>
-                                    <span>${apiStatus.isConfigured ? 'API Ready' : 'API Not Configured'}</span>
-                                </span>
+                        
+                        <!-- New Chat Button -->
+                        <button id="new-chat-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2">
+                            <span class="text-lg">+</span>
+                            <span>New Chat</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Chat History -->
+                    <div class="flex-1 overflow-y-auto">
+                        <div id="chat-history" class="p-2">
+                            ${this.renderChatHistory()}
+                        </div>
+                    </div>
+                    
+                    <!-- Sidebar Footer -->
+                    <div class="p-4 border-t border-gray-200">
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <span class="flex items-center space-x-1">
+                                <span class="w-2 h-2 rounded-full ${apiStatus.isConfigured ? 'bg-green-500' : 'bg-red-500'}"></span>
+                                <span>${apiStatus.isConfigured ? 'API Ready' : 'API Not Configured'}</span>
+                            </span>
+                            <button id="toggle-sidebar-btn" class="text-gray-400 hover:text-gray-600" title="Toggle Sidebar">
+                                <span class="text-lg">⬅</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Main Chat Area -->
+                <div class="flex-1 flex flex-col">
+                    <!-- Chat Header -->
+                    <div class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                        <div class="flex items-center space-x-3">
+                            ${this.state.sidebarCollapsed ? `
+                                <button id="show-sidebar-btn" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Show Sidebar">
+                                    <span class="text-lg">☰</span>
+                                </button>
+                            ` : ''}
+                            <div>
+                                <h1 class="text-xl font-bold text-gray-800">${currentChat ? currentChat.title : 'AI Chatbot'}</h1>
+                                <p class="text-sm text-gray-600">
+                                    ${currentChat ? 
+                                        `${currentChat.messages.length} messages • ${utils.formatTimestamp(currentChat.updatedAt)}` : 
+                                        'Start a new conversation'
+                                    }
+                                </p>
                             </div>
                         </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            <button id="auto-speak-btn" class="px-3 py-2 ${this.state.autoSpeak ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'} text-white rounded-lg text-sm transition-colors">
+                                ${this.state.autoSpeak ? '🔊 Auto' : '🔇 Manual'}
+                            </button>
+                            <button id="clear-chat-btn" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors" ${!currentChat ? 'disabled' : ''}>
+                                Clear Chat
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="flex items-center space-x-2">
-                        <button id="auto-speak-btn" class="px-3 py-2 ${this.state.autoSpeak ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'} text-white rounded-lg text-sm transition-colors">
-                            ${this.state.autoSpeak ? '🔊 Auto' : '🔇 Manual'}
-                        </button>
-                        <button id="clear-chat-btn" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors">
-                            Clear Chat
-                        </button>
-                        <button id="logout-btn" class="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
-                            Logout
-                        </button>
+                    <!-- Chat Messages Container -->
+                    <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+                        ${!currentChat ? `
+                            <div class="flex items-center justify-center h-full">
+                                <div class="text-center">
+                                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <span class="text-2xl">💬</span>
+                                    </div>
+                                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Welcome to AI Chatbot!</h3>
+                                    <p class="text-gray-600 mb-4">Start a new conversation or select a previous chat from the sidebar.</p>
+                                    <button id="start-new-chat-btn" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-medium transition-colors">
+                                        Start New Chat
+                                    </button>
+                                </div>
+                            </div>
+                        ` : '<!-- Messages will be loaded here -->'}
                     </div>
-                </div>
-                
-                <!-- Chat Messages Container -->
-                <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-2">
-                    <!-- Messages will be loaded here -->
-                </div>
-                
-                <!-- Input Area -->
-                <div class="bg-white border-t border-gray-200 px-6 py-4">
-                    <div class="flex items-center space-x-3">
-                        <button id="voice-btn" class="w-12 h-12 ${this.state.isRecording ? 'bg-red-500 voice-recording' : 'bg-gray-200 hover:bg-gray-300'} rounded-full flex items-center justify-center transition-colors">
-                            <span class="text-xl">${this.state.isRecording ? '🔴' : '🎤'}</span>
-                        </button>
-                        
-                        <div class="flex-1 relative">
-                            <input type="text" 
-                                   id="message-input"
-                                   placeholder="${this.state.isRecording ? 'Listening...' : 'Type your message here...'}"
-                                   ${this.state.isRecording ? 'disabled' : ''}
-                                   class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500 transition-colors">
+                    
+                    <!-- Input Area -->
+                    <div class="bg-white border-t border-gray-200 px-6 py-4">
+                        <div class="flex items-center space-x-3">
+                            <button id="voice-btn" class="w-12 h-12 ${this.state.isRecording ? 'bg-red-500 voice-recording' : 'bg-gray-200 hover:bg-gray-300'} rounded-full flex items-center justify-center transition-colors">
+                                <span class="text-xl">${this.state.isRecording ? '🔴' : '🎤'}</span>
+                            </button>
+                            
+                            <div class="flex-1 relative">
+                                <input type="text" 
+                                       id="message-input"
+                                       placeholder="${this.state.isRecording ? 'Listening...' : 'Type your message here...'}"
+                                       ${this.state.isRecording ? 'disabled' : ''}
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500 transition-colors">
+                            </div>
+                            
+                            <button id="send-btn" class="w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors">
+                                <span class="text-xl">➤</span>
+                            </button>
                         </div>
                         
-                        <button id="send-btn" class="w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors">
-                            <span class="text-xl">➤</span>
-                        </button>
-                    </div>
-                    
-                    <div class="text-center mt-2">
-                        <p class="text-xs text-gray-500">Press Ctrl+Enter to send • Escape to stop recording/speaking</p>
+                        <div class="text-center mt-2">
+                            <p class="text-xs text-gray-500">Press Ctrl+Enter to send • Escape to stop recording/speaking</p>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
         
         console.log('✅ ChatApp rendered');
+    }
+
+    renderChatHistory() {
+        if (this.state.chatSessions.length === 0) {
+            return `
+                <div class="text-center py-8 text-gray-500">
+                    <p class="text-sm">No chat history yet</p>
+                    <p class="text-xs">Start a new conversation!</p>
+                </div>
+            `;
+        }
+
+        return this.state.chatSessions.map(chat => {
+            const isActive = chat.id === this.state.currentChatId;
+            const lastMessage = chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
+            
+            return `
+                <div class="chat-session-item group mb-2 p-3 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50'}" 
+                     data-chat-id="${chat.id}">
+                    <div class="flex justify-between items-start mb-1">
+                        <div class="flex-1 mr-2">
+                            <h3 class="chat-title font-medium text-gray-800 text-sm truncate" data-chat-id="${chat.id}">${chat.title}</h3>
+                            <input type="text" class="chat-title-input hidden w-full text-sm font-medium text-gray-800 bg-transparent border border-blue-500 rounded px-1 py-0.5" 
+                                   data-chat-id="${chat.id}" value="${chat.title.replace(/"/g, '&quot;')}" maxlength="50">
+                        </div>
+                        <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button class="rename-chat-btn text-gray-400 hover:text-blue-500 text-sm" 
+                                    data-chat-id="${chat.id}" title="Rename chat">✏️</button>
+                            <button class="delete-chat-btn text-gray-400 hover:text-red-500 text-lg" 
+                                    data-chat-id="${chat.id}" title="Delete chat">×</button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 truncate mb-1">
+                        ${lastMessage ? (lastMessage.type === 'user' ? 'You: ' : 'AI: ') + lastMessage.content : 'No messages yet'}
+                    </p>
+                    <div class="flex justify-between items-center text-xs text-gray-400">
+                        <span>${chat.messages.length} messages</span>
+                        <span>${utils.formatTimestamp(chat.updatedAt)}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     setupEventListeners() {
@@ -180,7 +292,7 @@ class ChatApp {
             // Clear chat button
             const clearBtn = document.getElementById('clear-chat-btn');
             if (clearBtn) {
-                clearBtn.addEventListener('click', () => this.clearChat());
+                clearBtn.addEventListener('click', () => this.clearCurrentChat());
             }
 
             // Logout button
@@ -191,6 +303,62 @@ class ChatApp {
                     window.app.render();
                 });
             }
+
+            // New chat button
+            const newChatBtn = document.getElementById('new-chat-btn');
+            if (newChatBtn) {
+                newChatBtn.addEventListener('click', () => this.createNewChat());
+            }
+
+            // Start new chat button (in empty state)
+            const startNewChatBtn = document.getElementById('start-new-chat-btn');
+            if (startNewChatBtn) {
+                startNewChatBtn.addEventListener('click', () => this.createNewChat());
+            }
+
+            // Sidebar toggle buttons
+            const toggleSidebarBtn = document.getElementById('toggle-sidebar-btn');
+            if (toggleSidebarBtn) {
+                toggleSidebarBtn.addEventListener('click', () => this.toggleSidebar());
+            }
+
+            const showSidebarBtn = document.getElementById('show-sidebar-btn');
+            if (showSidebarBtn) {
+                showSidebarBtn.addEventListener('click', () => this.toggleSidebar());
+            }
+
+            // Chat session clicks
+            const chatItems = document.querySelectorAll('.chat-session-item');
+            chatItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('delete-chat-btn') && 
+                        !e.target.classList.contains('rename-chat-btn') &&
+                        !e.target.classList.contains('chat-title-input')) {
+                        const chatId = item.getAttribute('data-chat-id');
+                        this.switchToChat(chatId);
+                    }
+                });
+            });
+
+            // Delete chat buttons
+            const deleteButtons = document.querySelectorAll('.delete-chat-btn');
+            deleteButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const chatId = btn.getAttribute('data-chat-id');
+                    this.deleteChat(chatId);
+                });
+            });
+
+            // Rename chat buttons
+            const renameButtons = document.querySelectorAll('.rename-chat-btn');
+            renameButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const chatId = btn.getAttribute('data-chat-id');
+                    this.renameChat(chatId);
+                });
+            });
 
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
@@ -414,8 +582,14 @@ class ChatApp {
                 timestamp: Date.now()
             };
 
+            // Ensure we have a current chat
+            if (!this.state.currentChatId) {
+                const newChat = this.createNewChat();
+                this.state.currentChatId = newChat.id;
+            }
+
             // Add to database first and get the message with ID
-            const savedUserMessage = databaseService.addMessage(this.props.user.id, userMessage);
+            const savedUserMessage = databaseService.addMessage(this.props.user.id, userMessage, this.state.currentChatId);
             this.state.messages.push(savedUserMessage);
             console.log('✅ User message added:', savedUserMessage.content.substring(0, 50) + '...', 'Total messages:', this.state.messages.length);
             this.addMessageToChat(savedUserMessage, this.state.messages.length - 1);
@@ -438,11 +612,14 @@ class ChatApp {
                 };
 
                 // Add to database first and get the message with ID
-                const savedAiMessage = databaseService.addMessage(this.props.user.id, aiMessage);
+                const savedAiMessage = databaseService.addMessage(this.props.user.id, aiMessage, this.state.currentChatId);
                 this.state.messages.push(savedAiMessage);
                 console.log('✅ AI message added:', savedAiMessage.content.substring(0, 50) + '...', 'Total messages:', this.state.messages.length);
                 this.addMessageToChat(savedAiMessage, this.state.messages.length - 1);
                 this.scrollToBottom();
+
+                // Update chat sessions
+                this.refreshChatSessions();
 
                 // Auto-speak if enabled
                 if (this.state.autoSpeak) {
@@ -508,6 +685,8 @@ class ChatApp {
             if (this.state.isRecording) {
                 this.stopVoiceRecording();
             } else {
+                // Stop any ongoing audio before starting recording
+                this.stopAllAudio();
                 this.startVoiceRecording();
             }
         } catch (error) {
@@ -522,6 +701,9 @@ class ChatApp {
                 return;
             }
 
+            // Stop any ongoing speech synthesis when starting voice recording
+            this.stopAllAudio();
+            
             this.state.isRecording = true;
             this.updateVoiceButton();
 
@@ -579,6 +761,27 @@ class ChatApp {
             }
         } catch (error) {
             console.error('Error updating voice button:', error);
+        }
+    }
+
+    stopAllAudio() {
+        try {
+            // Stop any ongoing speech synthesis
+            if (voiceService) {
+                voiceService.stopSpeaking();
+                voiceService.stopListening();
+            }
+            
+            // Reset speaking state
+            this.state.speakingMessageId = null;
+            this.state.isRecording = false;
+            
+            // Update UI
+            this.updateVoiceButton();
+            
+            console.log('🔇 All audio stopped');
+        } catch (error) {
+            console.error('Error stopping audio:', error);
         }
     }
 
@@ -655,17 +858,343 @@ class ChatApp {
         }
     }
 
-    clearChat() {
+    clearCurrentChat() {
         try {
-            if (confirm('Are you sure you want to clear all chat messages? This cannot be undone.')) {
-                databaseService.clearUserChats(this.props.user.id);
-                this.state.messages = [];
-                this.loadMessages();
-                utils.showToast('Chat cleared successfully!', 'success');
-            }
+            if (!this.state.currentChatId) return;
+            
+            // Find the current chat title for the confirmation dialog
+            const chat = this.state.chatSessions.find(c => c.id === this.state.currentChatId);
+            const chatTitle = chat ? chat.title : 'this chat';
+            
+            this.showConfirmModal(
+                'Clear Chat',
+                `Are you sure you want to clear all messages in "${chatTitle}"? This cannot be undone.`,
+                () => {
+                    // Confirmed - clear the chat
+                    // Stop any ongoing audio when clearing chat
+                    this.stopAllAudio();
+                    
+                    databaseService.clearUserChats(this.props.user.id, this.state.currentChatId);
+                    this.state.messages = [];
+                    this.refreshChatSessions();
+                    this.loadMessages();
+                    utils.showToast('Chat cleared successfully!', 'success');
+                },
+                null, // onCancel callback
+                'Clear', // confirm button text
+                'red' // confirm button color
+            );
         } catch (error) {
             console.error('Error clearing chat:', error);
             utils.showToast('Failed to clear chat', 'error');
         }
+    }
+
+    createNewChat() {
+        try {
+            // Stop any ongoing audio when creating new chat
+            this.stopAllAudio();
+            
+            const newChat = databaseService.createNewChat(this.props.user.id);
+            this.state.currentChatId = newChat.id;
+            this.state.messages = [];
+            this.refreshChatSessions();
+            this.render();
+            this.setupEventListeners();
+            
+            // Focus on input
+            const input = document.getElementById('message-input');
+            if (input) input.focus();
+            
+            console.log('✅ New chat created:', newChat.id);
+            return newChat;
+        } catch (error) {
+            console.error('Error creating new chat:', error);
+            utils.showToast('Failed to create new chat', 'error');
+        }
+    }
+
+    switchToChat(chatId) {
+        try {
+            if (chatId === this.state.currentChatId) return;
+            
+            // Stop any ongoing audio/speech when switching chats
+            this.stopAllAudio();
+            
+            this.state.currentChatId = chatId;
+            this.state.messages = databaseService.getUserChats(this.props.user.id, chatId);
+            this.render();
+            this.setupEventListeners();
+            this.loadMessages();
+            
+            console.log('✅ Switched to chat:', chatId);
+        } catch (error) {
+            console.error('Error switching chat:', error);
+            utils.showToast('Failed to switch chat', 'error');
+        }
+    }
+
+    deleteChat(chatId) {
+        try {
+            // Find the chat title for the confirmation dialog
+            const chat = this.state.chatSessions.find(c => c.id === chatId);
+            const chatTitle = chat ? chat.title : 'this chat';
+            
+            this.showConfirmModal(
+                'Delete Chat',
+                `Are you sure you want to delete "${chatTitle}"? This cannot be undone.`,
+                () => {
+                    // Confirmed - delete the chat
+                    const success = databaseService.deleteChat(this.props.user.id, chatId);
+                    
+                    if (success) {
+                        // If we deleted the current chat, switch to another or create new
+                        if (chatId === this.state.currentChatId) {
+                            this.refreshChatSessions();
+                            if (this.state.chatSessions.length > 0) {
+                                this.switchToChat(this.state.chatSessions[0].id);
+                            } else {
+                                this.state.currentChatId = null;
+                                this.state.messages = [];
+                                this.render();
+                                this.setupEventListeners();
+                            }
+                        } else {
+                            this.refreshChatSessions();
+                            this.updateSidebar();
+                        }
+                        
+                        utils.showToast('Chat deleted successfully!', 'success');
+                    } else {
+                        utils.showToast('Failed to delete chat', 'error');
+                    }
+                },
+                null, // onCancel callback
+                'Delete', // confirm button text
+                'red' // confirm button color
+            );
+        } catch (error) {
+            console.error('Error deleting chat:', error);
+            utils.showToast('Failed to delete chat', 'error');
+        }
+    }
+
+    renameChat(chatId) {
+        try {
+            // Find the title elements
+            const titleElement = document.querySelector(`.chat-title[data-chat-id="${chatId}"]`);
+            const inputElement = document.querySelector(`.chat-title-input[data-chat-id="${chatId}"]`);
+            
+            if (!titleElement || !inputElement) {
+                utils.showToast('Chat not found', 'error');
+                return;
+            }
+
+            // Hide title, show input
+            titleElement.classList.add('hidden');
+            inputElement.classList.remove('hidden');
+            inputElement.focus();
+            inputElement.select();
+
+            // Store original value for cancellation
+            const originalValue = inputElement.value;
+
+            // Handle save on Enter or blur
+            const saveRename = () => {
+                const newTitle = inputElement.value.trim();
+                
+                if (newTitle && newTitle !== originalValue) {
+                    const success = databaseService.renameChat(this.props.user.id, chatId, newTitle);
+                    
+                    if (success) {
+                        // Update the chat sessions
+                        this.refreshChatSessions();
+                        
+                        // If this is the current chat, update the header
+                        if (chatId === this.state.currentChatId) {
+                            this.render();
+                            this.setupEventListeners();
+                            this.loadMessages();
+                        } else {
+                            // Just update the sidebar
+                            this.updateSidebar();
+                        }
+                        
+                        utils.showToast('Chat renamed successfully!', 'success');
+                    } else {
+                        utils.showToast('Failed to rename chat', 'error');
+                        // Revert to original value
+                        inputElement.value = originalValue;
+                    }
+                } else {
+                    // Revert to original value if empty or unchanged
+                    inputElement.value = originalValue;
+                }
+
+                // Hide input, show title
+                inputElement.classList.add('hidden');
+                titleElement.classList.remove('hidden');
+            };
+
+            // Handle cancel on Escape
+            const cancelRename = () => {
+                inputElement.value = originalValue;
+                inputElement.classList.add('hidden');
+                titleElement.classList.remove('hidden');
+            };
+
+            // Event listeners for save/cancel
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveRename();
+                    inputElement.removeEventListener('keydown', handleKeyDown);
+                    inputElement.removeEventListener('blur', saveRename);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelRename();
+                    inputElement.removeEventListener('keydown', handleKeyDown);
+                    inputElement.removeEventListener('blur', saveRename);
+                }
+            };
+
+            inputElement.addEventListener('keydown', handleKeyDown);
+            inputElement.addEventListener('blur', saveRename);
+
+        } catch (error) {
+            console.error('Error renaming chat:', error);
+            utils.showToast('Failed to rename chat', 'error');
+        }
+    }
+
+    toggleSidebar() {
+        // Stop any ongoing audio when toggling sidebar
+        this.stopAllAudio();
+        
+        this.state.sidebarCollapsed = !this.state.sidebarCollapsed;
+        this.render();
+        this.setupEventListeners();
+        this.loadMessages();
+    }
+
+    refreshChatSessions() {
+        this.state.chatSessions = databaseService.getUserChatSessions(this.props.user.id);
+    }
+
+    updateSidebar() {
+        const chatHistoryContainer = document.getElementById('chat-history');
+        if (chatHistoryContainer) {
+            chatHistoryContainer.innerHTML = this.renderChatHistory();
+            
+            // Re-attach event listeners for chat items
+            const chatItems = document.querySelectorAll('.chat-session-item');
+            chatItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('delete-chat-btn') && 
+                        !e.target.classList.contains('rename-chat-btn') &&
+                        !e.target.classList.contains('chat-title-input')) {
+                        const chatId = item.getAttribute('data-chat-id');
+                        this.switchToChat(chatId);
+                    }
+                });
+            });
+
+            const deleteButtons = document.querySelectorAll('.delete-chat-btn');
+            deleteButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const chatId = btn.getAttribute('data-chat-id');
+                    this.deleteChat(chatId);
+                });
+            });
+
+            const renameButtons = document.querySelectorAll('.rename-chat-btn');
+            renameButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const chatId = btn.getAttribute('data-chat-id');
+                    this.renameChat(chatId);
+                });
+            });
+        }
+    }
+
+    showConfirmModal(title, message, onConfirm, onCancel = null, confirmText = 'Confirm', confirmColor = 'red') {
+        // Remove any existing modal
+        const existingModal = document.getElementById('confirm-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Determine button styling based on action type
+        const buttonClass = confirmColor === 'red' 
+            ? 'text-white bg-red-500 hover:bg-red-600' 
+            : 'text-white bg-blue-500 hover:bg-blue-600';
+
+        // Create modal HTML
+        const modal = document.createElement('div');
+        modal.id = 'confirm-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl transform transition-all">
+                <div class="flex items-center mb-4">
+                    <div class="w-8 h-8 ${confirmColor === 'red' ? 'bg-red-100' : 'bg-blue-100'} rounded-full flex items-center justify-center mr-3">
+                        <span class="${confirmColor === 'red' ? 'text-red-600' : 'text-blue-600'} text-lg">⚠️</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+                </div>
+                <p class="text-gray-600 mb-6 leading-relaxed">${message}</p>
+                <div class="flex justify-end space-x-3">
+                    <button id="modal-cancel" class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        Cancel
+                    </button>
+                    <button id="modal-confirm" class="px-4 py-2 ${buttonClass} rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-50 ${confirmColor === 'red' ? 'focus:ring-red-500' : 'focus:ring-blue-500'}">
+                        ${confirmText}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Add to page
+        document.body.appendChild(modal);
+
+        // Add event listeners
+        const confirmBtn = modal.querySelector('#modal-confirm');
+        const cancelBtn = modal.querySelector('#modal-cancel');
+
+        const closeModal = () => {
+            modal.remove();
+        };
+
+        confirmBtn.addEventListener('click', () => {
+            closeModal();
+            if (onConfirm) onConfirm();
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            closeModal();
+            if (onCancel) onCancel();
+        });
+
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+                if (onCancel) onCancel();
+            }
+        });
+
+        // Close on Escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                if (onCancel) onCancel();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        // Focus the cancel button by default for better UX
+        setTimeout(() => cancelBtn.focus(), 100);
     }
 }

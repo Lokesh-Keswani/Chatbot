@@ -203,7 +203,7 @@
     </script>
     
     <!-- Load services -->
-    <script src="services/databaseService.js?v=15"></script>
+    <script src="services/databaseService.js?v=23"></script>
     <script>
         if (typeof databaseService === 'undefined') {
             console.error('❌ databaseService not loaded properly');
@@ -267,7 +267,7 @@
         }
     </script>
     
-    <script src="components/ChatApp.js?v=20"></script>
+    <script src="components/ChatApp.js?v=26"></script>
     <script>
         if (typeof ChatApp === 'undefined') {
             console.error('❌ ChatApp not loaded properly');
@@ -454,15 +454,28 @@
         // Handle page visibility change to stop speech when tab is not active
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                voiceService.stopSpeaking();
-                voiceService.stopListening();
-                    if (window.app && window.app.chatApp) {
-                        // Update the ChatApp state directly instead of using setState
-                        window.app.chatApp.state.isRecording = false;
-                        window.app.chatApp.state.speakingMessageId = null;
-                        window.app.chatApp.updateVoiceButton();
+                // Use the new stopAllAudio method for consistent audio stopping
+                if (window.app && window.app.chatApp && window.app.chatApp.stopAllAudio) {
+                    window.app.chatApp.stopAllAudio();
+                } else {
+                    // Fallback to direct service calls
+                    voiceService.stopSpeaking();
+                    voiceService.stopListening();
                 }
             }
+        });
+
+        // Handle window blur/focus events for better audio control
+        window.addEventListener('blur', () => {
+            // Stop audio when window loses focus
+            if (window.app && window.app.chatApp && window.app.chatApp.stopAllAudio) {
+                window.app.chatApp.stopAllAudio();
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            // Optional: Could add focus-related logic here if needed
+            console.log('🎯 Window gained focus');
         });
 
         // Service Worker for offline functionality (basic)

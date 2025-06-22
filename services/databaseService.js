@@ -60,7 +60,28 @@ class DatabaseService {
     // Chat Management
     loadChats() {
         try {
-            return JSON.parse(localStorage.getItem(this.storagePrefix + 'chats') || '{}');
+            const chats = JSON.parse(localStorage.getItem(this.storagePrefix + 'chats') || '{}');
+            // Migrate old single chat format to new multi-chat format
+            Object.keys(chats).forEach(userId => {
+                if (Array.isArray(chats[userId])) {
+                    // Old format: direct array of messages
+                    const oldMessages = chats[userId];
+                    if (oldMessages.length > 0) {
+                        chats[userId] = {
+                            'default': {
+                                id: 'default',
+                                title: 'Chat Session',
+                                messages: oldMessages,
+                                createdAt: oldMessages[0]?.timestamp || Date.now(),
+                                updatedAt: oldMessages[oldMessages.length - 1]?.timestamp || Date.now()
+                            }
+                        };
+                    } else {
+                        chats[userId] = {};
+                    }
+                }
+            });
+            return chats;
         } catch (error) {
             console.error('Error loading chats:', error);
             return {};
@@ -75,13 +96,87 @@ class DatabaseService {
         }
     }
 
-    getUserChats(userId) {
-        return this.chats[userId] || [];
+    getUserChats(userId, chatId = null) {
+        if (!this.chats[userId]) {
+            this.chats[userId] = {};
+        }
+        
+        if (chatId) {
+            return this.chats[userId][chatId]?.messages || [];
+        }
+        
+        // Return the most recent chat's messages for backward compatibility
+        const userChats = this.chats[userId];
+        const chatIds = Object.keys(userChats);
+        if (chatIds.length === 0) return [];
+        
+        // Sort by updatedAt and return the most recent
+        const sortedChats = chatIds.sort((a, b) => 
+            (userChats[b].updatedAt || 0) - (userChats[a].updatedAt || 0)
+        );
+        
+        return userChats[sortedChats[0]]?.messages || [];
     }
 
-    addMessage(userId, message) {
+    getUserChatSessions(userId) {
         if (!this.chats[userId]) {
-            this.chats[userId] = [];
+            this.chats[userId] = {};
+        }
+        
+        const userChats = this.chats[userId];
+        return Object.values(userChats).sort((a, b) => 
+            (b.updatedAt || 0) - (a.updatedAt || 0)
+        );
+    }
+
+    createNewChat(userId, title = null) {
+        if (!this.chats[userId]) {
+            this.chats[userId] = {};
+        }
+        
+        const chatId = uuid.v4();
+        const now = Date.now();
+        
+        const newChat = {
+            id: chatId,
+            title: title || 'New Chat',
+            messages: [],
+            createdAt: now,
+            updatedAt: now
+        };
+        
+        this.chats[userId][chatId] = newChat;
+        this.saveChats();
+        
+        console.log('New chat created:', chatId);
+        return newChat;
+    }
+
+    addMessage(userId, message, chatId = null) {
+        if (!this.chats[userId]) {
+            this.chats[userId] = {};
+        }
+        
+        // If no chatId provided, get the most recent chat or create a new one
+        if (!chatId) {
+            const sessions = this.getUserChatSessions(userId);
+            if (sessions.length === 0) {
+                const newChat = this.createNewChat(userId);
+                chatId = newChat.id;
+            } else {
+                chatId = sessions[0].id;
+            }
+        }
+        
+        // Ensure the chat exists
+        if (!this.chats[userId][chatId]) {
+            this.chats[userId][chatId] = {
+                id: chatId,
+                title: 'Chat Session',
+                messages: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
         }
         
         const messageWithId = {
@@ -90,17 +185,70 @@ class DatabaseService {
             timestamp: message.timestamp || Date.now()
         };
         
-        this.chats[userId].push(messageWithId);
+        this.chats[userId][chatId].messages.push(messageWithId);
+        this.chats[userId][chatId].updatedAt = Date.now();
+        
+        // Auto-generate title from first user message
+        if (this.chats[userId][chatId].title === 'New Chat' || this.chats[userId][chatId].title === 'Chat Session') {
+            if (message.type === 'user' && message.content.trim()) {
+                const title = message.content.trim().substring(0, 30);
+                this.chats[userId][chatId].title = title.length < message.content.trim().length ? title + '...' : title;
+            }
+        }
+        
         this.saveChats();
         
-        console.log('Message added for user:', userId);
+        console.log('Message added to chat:', chatId);
         return messageWithId;
     }
 
-    clearUserChats(userId) {
-        this.chats[userId] = [];
+    clearUserChats(userId, chatId = null) {
+        if (chatId) {
+            // Clear specific chat
+            if (this.chats[userId] && this.chats[userId][chatId]) {
+                this.chats[userId][chatId].messages = [];
+                this.chats[userId][chatId].updatedAt = Date.now();
+            }
+        } else {
+            // Clear all chats for user
+            this.chats[userId] = {};
+        }
         this.saveChats();
         console.log('Chats cleared for user:', userId);
+    }
+
+    deleteChat(userId, chatId) {
+        if (this.chats[userId] && this.chats[userId][chatId]) {
+            delete this.chats[userId][chatId];
+            this.saveChats();
+            console.log('Chat deleted:', chatId);
+            return true;
+        }
+        return false;
+    }
+
+    renameChat(userId, chatId, newTitle) {
+        if (this.chats[userId] && this.chats[userId][chatId]) {
+            // Validate and sanitize the title
+            const sanitizedTitle = newTitle.trim();
+            if (sanitizedTitle.length === 0) {
+                return false;
+            }
+            
+            // Limit title length
+            const maxLength = 50;
+            const finalTitle = sanitizedTitle.length > maxLength ? 
+                sanitizedTitle.substring(0, maxLength) + '...' : 
+                sanitizedTitle;
+            
+            this.chats[userId][chatId].title = finalTitle;
+            this.chats[userId][chatId].updatedAt = Date.now();
+            this.saveChats();
+            
+            console.log('Chat renamed:', chatId, 'to:', finalTitle);
+            return true;
+        }
+        return false;
     }
 
     deleteMessage(userId, messageId) {
@@ -139,16 +287,31 @@ class DatabaseService {
 
     // Statistics
     getUserStats(userId) {
-        const userChats = this.getUserChats(userId);
-        const totalMessages = userChats.length;
-        const userMessages = userChats.filter(msg => msg.type === 'user').length;
-        const aiMessages = userChats.filter(msg => msg.type === 'ai').length;
+        const chatSessions = this.getUserChatSessions(userId);
+        let totalMessages = 0;
+        let userMessages = 0;
+        let aiMessages = 0;
+        let lastActivity = null;
+        
+        chatSessions.forEach(session => {
+            totalMessages += session.messages.length;
+            userMessages += session.messages.filter(msg => msg.type === 'user').length;
+            aiMessages += session.messages.filter(msg => msg.type === 'ai').length;
+            
+            if (session.messages.length > 0) {
+                const sessionLastActivity = session.messages[session.messages.length - 1].timestamp;
+                if (!lastActivity || sessionLastActivity > lastActivity) {
+                    lastActivity = sessionLastActivity;
+                }
+            }
+        });
         
         return {
             totalMessages,
             userMessages,
             aiMessages,
-            lastActivity: userChats.length > 0 ? userChats[userChats.length - 1].timestamp : null
+            totalSessions: chatSessions.length,
+            lastActivity
         };
     }
 
