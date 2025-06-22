@@ -20,7 +20,8 @@ class ChatApp {
             autoSpeak: CONFIG.AUTO_SPEAK_AI_RESPONSES,
             chatSessions: chatSessions,
             currentChatId: currentChatId,
-            sidebarCollapsed: false
+            sidebarCollapsed: false,
+            currentTheme: utils.getCurrentTheme()
         };
         
         // Make globally available
@@ -162,6 +163,9 @@ class ChatApp {
                         </div>
                         
                         <div class="flex items-center space-x-2">
+                            <button id="theme-toggle-btn" class="w-10 h-10 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors theme-toggle" title="Toggle ${this.state.currentTheme === 'dark' ? 'light' : 'dark'} mode">
+                                <span class="text-lg">${this.state.currentTheme === 'dark' ? '☀️' : '🌙'}</span>
+                            </button>
                             <button id="download-pdf-btn" class="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors" ${!currentChat || currentChat.messages.length === 0 ? 'disabled' : ''} title="Download chat as PDF">
                                 📄 PDF
                             </button>
@@ -306,6 +310,12 @@ class ChatApp {
                 autoSpeakBtn.addEventListener('click', () => this.toggleAutoSpeak());
             }
 
+            // Theme toggle button
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', () => this.toggleTheme());
+            }
+
             // Clear chat button
             const clearBtn = document.getElementById('clear-chat-btn');
             if (clearBtn) {
@@ -391,6 +401,24 @@ class ChatApp {
                 if (e.key === 'Escape') {
                     this.stopVoiceRecording();
                     voiceService.stopSpeaking();
+                }
+            });
+
+            // Listen for theme changes from external sources
+            window.addEventListener('themeChanged', (e) => {
+                const newTheme = e.detail.theme;
+                if (newTheme !== this.state.currentTheme) {
+                    this.state.currentTheme = newTheme;
+                    
+                    // Update the theme toggle button if it exists
+                    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+                    if (themeToggleBtn) {
+                        const icon = themeToggleBtn.querySelector('span');
+                        if (icon) {
+                            icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+                        }
+                        themeToggleBtn.title = `Toggle ${newTheme === 'dark' ? 'light' : 'dark'} mode`;
+                    }
                 }
             });
 
@@ -878,6 +906,27 @@ class ChatApp {
             utils.showToast(`Auto-speak ${this.state.autoSpeak ? 'enabled' : 'disabled'}`, 'info');
         } catch (error) {
             console.error('Error toggling auto speak:', error);
+        }
+    }
+
+    toggleTheme() {
+        try {
+            const newTheme = utils.toggleTheme();
+            this.state.currentTheme = newTheme;
+            
+            // Update the theme toggle button
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            if (themeToggleBtn) {
+                const icon = themeToggleBtn.querySelector('span');
+                if (icon) {
+                    icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+                }
+                themeToggleBtn.title = `Toggle ${newTheme === 'dark' ? 'light' : 'dark'} mode`;
+            }
+            
+            console.log('🎨 Theme toggled to:', newTheme);
+        } catch (error) {
+            console.error('Error toggling theme:', error);
         }
     }
 

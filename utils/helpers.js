@@ -261,6 +261,50 @@ const utils = {
         }
 
         requestAnimationFrame(animation);
+    },
+
+    // Theme management functions
+    getCurrentTheme() {
+        return localStorage.getItem('chatbot_theme') || 'light';
+    },
+
+    setTheme(theme) {
+        localStorage.setItem('chatbot_theme', theme);
+        this.applyTheme(theme);
+        this.showToast(`Switched to ${theme} mode`, 'success');
+    },
+
+    toggleTheme() {
+        const currentTheme = this.getCurrentTheme();
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        this.setTheme(newTheme);
+        return newTheme;
+    },
+
+    applyTheme(theme) {
+        const body = document.body;
+        const html = document.documentElement;
+        
+        if (theme === 'dark') {
+            body.classList.remove('light-theme');
+            body.classList.add('dark-theme');
+            html.classList.add('dark');
+        } else {
+            body.classList.remove('dark-theme');
+            body.classList.add('light-theme');
+            html.classList.remove('dark');
+        }
+        
+        // Trigger a custom event for components to listen to theme changes
+        window.dispatchEvent(new CustomEvent('themeChanged', { 
+            detail: { theme } 
+        }));
+    },
+
+    initTheme() {
+        const savedTheme = this.getCurrentTheme();
+        this.applyTheme(savedTheme);
+        console.log(`🎨 Theme initialized: ${savedTheme}`);
     }
 };
 
