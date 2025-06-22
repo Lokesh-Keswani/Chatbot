@@ -10,7 +10,88 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" crossorigin="anonymous"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
+    <!-- Load jsPDF with multiple fallback CDNs -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Comprehensive jsPDF loading and initialization
+        let jsPDFLoadAttempts = 0;
+        const maxLoadAttempts = 3;
+        
+        function initializeJsPDF() {
+            console.log('📄 Initializing jsPDF...');
+            
+            // Try to find jsPDF in various global locations
+            let jsPDFFound = false;
+            
+            if (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF) {
+                window.jsPDF = window.jspdf.jsPDF;
+                jsPDFFound = true;
+                console.log('✅ jsPDF found at window.jspdf.jsPDF');
+            } else if (typeof jsPDF !== 'undefined') {
+                window.jsPDF = jsPDF;
+                jsPDFFound = true;
+                console.log('✅ jsPDF found as global jsPDF');
+            } else if (typeof window.jsPDF !== 'undefined') {
+                jsPDFFound = true;
+                console.log('✅ jsPDF already available at window.jsPDF');
+            }
+            
+            console.log('📄 jsPDF availability check:');
+            console.log('  - window.jsPDF:', typeof window.jsPDF);
+            console.log('  - window.jspdf:', typeof window.jspdf);
+            console.log('  - jsPDF:', typeof jsPDF);
+            console.log('  - window.jspdf.jsPDF:', typeof window.jspdf?.jsPDF);
+            
+            if (!jsPDFFound) {
+                jsPDFLoadAttempts++;
+                console.warn(`⚠️ jsPDF not found (attempt ${jsPDFLoadAttempts}/${maxLoadAttempts})`);
+                
+                if (jsPDFLoadAttempts < maxLoadAttempts) {
+                    console.log('🔄 Retrying jsPDF initialization in 500ms...');
+                    setTimeout(initializeJsPDF, 500);
+                } else {
+                    console.error('❌ jsPDF failed to load after multiple attempts. Trying fallback CDN...');
+                    loadJsPDFFallback();
+                }
+            } else {
+                console.log('✅ jsPDF initialized successfully');
+                // Test if we can create a PDF instance
+                try {
+                    const testDoc = new window.jsPDF();
+                    console.log('✅ jsPDF test instance created successfully');
+                } catch (error) {
+                    console.error('❌ jsPDF test failed:', error);
+                }
+            }
+        }
+        
+        function loadJsPDFFallback() {
+            console.log('🔄 Loading jsPDF fallback CDN...');
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = 'https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js';
+            fallbackScript.onload = () => {
+                console.log('📦 Fallback jsPDF loaded');
+                setTimeout(initializeJsPDF, 100);
+            };
+            fallbackScript.onerror = () => {
+                console.error('❌ Fallback jsPDF also failed to load');
+                console.log('💡 PDF export will not be available. Please refresh the page.');
+            };
+            document.head.appendChild(fallbackScript);
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(initializeJsPDF, 200);
+            });
+        } else {
+            setTimeout(initializeJsPDF, 200);
+        }
+        
+        // Also try to initialize when the script loads
+        setTimeout(initializeJsPDF, 100);
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
@@ -267,7 +348,7 @@
         }
     </script>
     
-    <script src="components/ChatApp.js?v=26"></script>
+    <script src="components/ChatApp.js?v=29"></script>
     <script>
         if (typeof ChatApp === 'undefined') {
             console.error('❌ ChatApp not loaded properly');
@@ -459,8 +540,8 @@
                     window.app.chatApp.stopAllAudio();
                 } else {
                     // Fallback to direct service calls
-                    voiceService.stopSpeaking();
-                    voiceService.stopListening();
+                voiceService.stopSpeaking();
+                voiceService.stopListening();
                 }
             }
         });

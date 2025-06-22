@@ -154,6 +154,9 @@ class ChatApp {
                         </div>
                         
                         <div class="flex items-center space-x-2">
+                            <button id="download-pdf-btn" class="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors" ${!currentChat || currentChat.messages.length === 0 ? 'disabled' : ''} title="Download chat as PDF">
+                                📄 PDF
+                            </button>
                             <button id="auto-speak-btn" class="px-3 py-2 ${this.state.autoSpeak ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'} text-white rounded-lg text-sm transition-colors">
                                 ${this.state.autoSpeak ? '🔊 Auto' : '🔇 Manual'}
                             </button>
@@ -281,6 +284,12 @@ class ChatApp {
             const voiceBtn = document.getElementById('voice-btn');
             if (voiceBtn) {
                 voiceBtn.addEventListener('click', () => this.toggleVoiceRecording());
+            }
+
+            // Download PDF button
+            const downloadPdfBtn = document.getElementById('download-pdf-btn');
+            if (downloadPdfBtn) {
+                downloadPdfBtn.addEventListener('click', () => this.downloadChatAsPDF());
             }
 
             // Auto speak button
@@ -1196,5 +1205,146 @@ class ChatApp {
 
         // Focus the cancel button by default for better UX
         setTimeout(() => cancelBtn.focus(), 100);
+    }
+
+    downloadChatAsPDF() {
+        try {
+            // Check if jsPDF is available - comprehensive check
+            let jsPDFClass = null;
+            
+            // Try multiple ways to access jsPDF
+            if (typeof window.jsPDF !== 'undefined') {
+                jsPDFClass = window.jsPDF;
+                console.log('✅ Using window.jsPDF');
+            } else if (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF) {
+                jsPDFClass = window.jspdf.jsPDF;
+                console.log('✅ Using window.jspdf.jsPDF');
+            } else if (typeof jsPDF !== 'undefined') {
+                jsPDFClass = jsPDF;
+                console.log('✅ Using global jsPDF');
+            }
+
+            if (!jsPDFClass) {
+                console.error('❌ jsPDF not found. Available objects:', {
+                    'window.jsPDF': typeof window.jsPDF,
+                    'window.jspdf': typeof window.jspdf,
+                    'window.jspdf.jsPDF': typeof window.jspdf?.jsPDF,
+                    'jsPDF': typeof jsPDF
+                });
+                
+                // Try to wait and retry once
+                setTimeout(() => {
+                    console.log('🔄 Retrying PDF generation...');
+                    this.downloadChatAsPDF();
+                }, 1000);
+                
+                utils.showToast('PDF library loading... Please try again in a moment.', 'warning');
+                return;
+            }
+
+            // Test if we can create an instance
+            try {
+                const testDoc = new jsPDFClass();
+                console.log('✅ jsPDF instance test successful');
+            } catch (testError) {
+                console.error('❌ jsPDF instance test failed:', testError);
+                utils.showToast('PDF library error. Please refresh the page.', 'error');
+                return;
+            }
+
+            // Get current chat
+            const currentChat = this.state.chatSessions.find(chat => chat.id === this.state.currentChatId);
+            if (!currentChat || currentChat.messages.length === 0) {
+                utils.showToast('No messages to export', 'warning');
+                return;
+            }
+
+            // Create new PDF document
+            const doc = new jsPDFClass();
+            
+            // Set up document properties
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 20;
+            const maxWidth = pageWidth - (margin * 2);
+            let yPosition = margin;
+
+            // Add title
+            doc.setFontSize(20);
+            doc.setFont(undefined, 'bold');
+            doc.text(currentChat.title, margin, yPosition);
+            yPosition += 15;
+
+            // Add metadata
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(128, 128, 128);
+            const exportDate = new Date().toLocaleString();
+            doc.text(`Exported on: ${exportDate}`, margin, yPosition);
+            yPosition += 8;
+            doc.text(`Total messages: ${currentChat.messages.length}`, margin, yPosition);
+            yPosition += 15;
+
+            // Reset text color
+            doc.setTextColor(0, 0, 0);
+
+            // Process messages
+            currentChat.messages.forEach((message, index) => {
+                // Check if we need a new page
+                if (yPosition > pageHeight - 40) {
+                    doc.addPage();
+                    yPosition = margin;
+                }
+
+                // Add message header
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                const sender = message.type === 'user' ? this.props.user.name : 'AI Assistant';
+                const timestamp = new Date(message.timestamp).toLocaleString();
+                doc.text(`${sender} - ${timestamp}`, margin, yPosition);
+                yPosition += 8;
+
+                // Clean message content for PDF (remove HTML tags and markdown)
+                let cleanContent = message.content
+                    .replace(/<[^>]*>/g, '') // Remove HTML tags
+                    .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markdown
+                    .replace(/\*(.*?)\*/g, '$1') // Remove italic markdown
+                    .replace(/`(.*?)`/g, '$1') // Remove code markdown
+                    .replace(/#{1,6}\s*/g, '') // Remove headers
+                    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Convert links to text
+                    .trim();
+
+                // Split content into lines that fit the page width
+                doc.setFont(undefined, 'normal');
+                doc.setFontSize(10);
+                const lines = doc.splitTextToSize(cleanContent, maxWidth);
+                
+                // Add each line
+                lines.forEach(line => {
+                    if (yPosition > pageHeight - 20) {
+                        doc.addPage();
+                        yPosition = margin;
+                    }
+                    doc.text(line, margin, yPosition);
+                    yPosition += 6;
+                });
+
+                yPosition += 10; // Space between messages
+            });
+
+            // Generate filename
+            const sanitizedTitle = currentChat.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const filename = `chat_${sanitizedTitle}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+            // Save the PDF
+            doc.save(filename);
+            
+            utils.showToast('Chat exported as PDF successfully!', 'success');
+            console.log('✅ PDF generated successfully:', filename);
+
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            utils.showToast('Failed to generate PDF. Please try again.', 'error');
+        }
     }
 }
