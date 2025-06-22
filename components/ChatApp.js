@@ -120,6 +120,14 @@ class ChatApp {
                     
                     <!-- Sidebar Footer -->
                     <div class="p-4 border-t border-gray-200">
+                        <!-- Account Settings -->
+                        <div class="mb-3">
+                            <button id="delete-account-btn" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center space-x-2">
+                                <span>🗑️</span>
+                                <span>Delete Account</span>
+                            </button>
+                        </div>
+                        
                         <div class="flex items-center justify-between text-xs text-gray-500">
                             <span class="flex items-center space-x-1">
                                 <span class="w-2 h-2 rounded-full ${apiStatus.isConfigured ? 'bg-green-500' : 'bg-red-500'}"></span>
@@ -311,6 +319,12 @@ class ChatApp {
                     authService.logout();
                     window.app.render();
                 });
+            }
+
+            // Delete account button
+            const deleteAccountBtn = document.getElementById('delete-account-btn');
+            if (deleteAccountBtn) {
+                deleteAccountBtn.addEventListener('click', () => this.showDeleteAccountModal());
             }
 
             // New chat button
@@ -1205,6 +1219,151 @@ class ChatApp {
 
         // Focus the cancel button by default for better UX
         setTimeout(() => cancelBtn.focus(), 100);
+    }
+
+    showDeleteAccountModal() {
+        // Create a custom modal for account deletion with password confirmation
+        const modal = document.createElement('div');
+        modal.id = 'delete-account-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl transform transition-all">
+                <div class="flex items-center mb-4">
+                    <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                        <span class="text-red-600 text-lg">⚠️</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900">Delete Account</h3>
+                </div>
+                
+                <div class="mb-6">
+                    <p class="text-gray-600 mb-4">This action cannot be undone. This will permanently delete your account and all your chat history.</p>
+                    
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                        <p class="text-sm text-red-800 font-medium">⚠️ Warning: All data will be permanently lost</p>
+                        <ul class="text-sm text-red-700 mt-2 list-disc list-inside">
+                            <li>All chat conversations and messages</li>
+                            <li>Your account profile and settings</li>
+                            <li>This action cannot be reversed</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <label for="delete-password" class="block text-sm font-medium text-gray-700 mb-2">
+                            Enter your password to confirm:
+                        </label>
+                        <input type="password" id="delete-password" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                               placeholder="Your current password">
+                        <div id="delete-error" class="text-red-600 text-sm mt-2 hidden"></div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button id="delete-cancel" class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        Cancel
+                    </button>
+                    <button id="delete-confirm" class="px-4 py-2 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Delete Account
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Add to page
+        document.body.appendChild(modal);
+
+        // Get elements
+        const passwordInput = modal.querySelector('#delete-password');
+        const errorDiv = modal.querySelector('#delete-error');
+        const confirmBtn = modal.querySelector('#delete-confirm');
+        const cancelBtn = modal.querySelector('#delete-cancel');
+
+        // Close modal function
+        const closeModal = () => {
+            modal.remove();
+        };
+
+        // Handle delete confirmation
+        const handleDelete = async () => {
+            const password = passwordInput.value.trim();
+            
+            if (!password) {
+                errorDiv.textContent = 'Please enter your password';
+                errorDiv.classList.remove('hidden');
+                passwordInput.focus();
+                return;
+            }
+
+            // Disable button and show loading
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Deleting...';
+            errorDiv.classList.add('hidden');
+
+            try {
+                // Attempt to delete the account
+                const result = authService.deleteAccount(this.props.user.id, password);
+                
+                if (result.success) {
+                    // Show success message briefly
+                    confirmBtn.textContent = 'Deleted!';
+                    confirmBtn.className = 'px-4 py-2 text-white bg-green-500 rounded-lg';
+                    
+                    // Close modal and redirect to login
+                    setTimeout(() => {
+                        closeModal();
+                        utils.showToast('Account deleted successfully. You have been logged out.', 'success');
+                        
+                        // Redirect to login page
+                        setTimeout(() => {
+                            window.app.render();
+                        }, 1000);
+                    }, 1000);
+                } else {
+                    // Show error
+                    errorDiv.textContent = result.message;
+                    errorDiv.classList.remove('hidden');
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Delete Account';
+                    passwordInput.focus();
+                }
+            } catch (error) {
+                console.error('Error deleting account:', error);
+                errorDiv.textContent = 'An error occurred. Please try again.';
+                errorDiv.classList.remove('hidden');
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Delete Account';
+            }
+        };
+
+        // Event listeners
+        confirmBtn.addEventListener('click', handleDelete);
+        cancelBtn.addEventListener('click', closeModal);
+
+        // Handle Enter key in password field
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleDelete();
+            }
+        });
+
+        // Close on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Close on Escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        // Focus password input
+        setTimeout(() => passwordInput.focus(), 100);
     }
 
     downloadChatAsPDF() {

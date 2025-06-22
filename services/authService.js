@@ -143,20 +143,34 @@ class AuthService {
             return { success: false, message: 'Password is incorrect' };
         }
 
-        // Remove user data
+        console.log('Deleting account for user:', user.email);
+
+        // Remove all user data
+        // 1. Remove user from users array
         databaseService.users = databaseService.users.filter(u => u.id !== userId);
-        delete databaseService.chats[userId];
         
+        // 2. Remove all chat sessions for this user
+        if (databaseService.chats[userId]) {
+            delete databaseService.chats[userId];
+        }
+        
+        // 3. Clear any cached current user data if it's this user
+        const currentUser = databaseService.getCurrentUser();
+        if (currentUser && currentUser.id === userId) {
+            databaseService.clearCurrentUser();
+        }
+        
+        // 4. Save all changes
         databaseService.saveUsers();
         databaseService.saveChats();
 
-        // Logout if it's the current user
+        // 5. Logout if it's the current user
         if (this.currentUser && this.currentUser.id === userId) {
             this.logout();
         }
 
-        console.log('Account deleted for user:', user.email);
-        return { success: true, message: 'Account deleted successfully' };
+        console.log('Account and all associated data deleted for user:', user.email);
+        return { success: true, message: 'Account and all chat history deleted successfully' };
     }
 
     // Reset session (for page refresh)
