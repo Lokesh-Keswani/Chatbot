@@ -87,73 +87,93 @@ class ChatApp {
         this.container.innerHTML = `
             <div class="flex h-screen bg-gray-50">
                 <!-- Sidebar -->
-                <div id="sidebar" class="w-80 bg-white border-r border-gray-200 flex flex-col ${this.state.sidebarCollapsed ? 'hidden' : ''}">
+                <div id="sidebar" class="w-80 md:w-80 sm:w-full bg-white border-r border-gray-200 flex flex-col ${this.state.sidebarCollapsed ? 'hidden' : ''} 
+                     ${this.state.sidebarCollapsed ? '' : 'fixed md:relative z-30 md:z-auto'} 
+                     ${this.state.sidebarCollapsed ? '' : 'inset-y-0 left-0 md:inset-auto'}">
                     <!-- Sidebar Header -->
-                    <div class="p-4 border-b border-gray-200">
+                    <div class="p-3 md:p-4 border-b border-gray-200">
                         <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            <div class="flex items-center space-x-2 md:space-x-3">
+                                <div class="w-7 h-7 md:w-8 md:h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xs md:text-sm">
                                     ${this.props.user.name.charAt(0).toUpperCase()}
                                 </div>
-                                <div>
-                                    <h2 class="font-semibold text-gray-800">${this.props.user.name}</h2>
-                                    <p class="text-xs text-gray-500">${stats.totalSessions} chats • ${stats.totalMessages} messages</p>
+                                <div class="min-w-0 flex-1">
+                                    <h2 class="font-semibold text-gray-800 text-sm md:text-base truncate">${this.props.user.name}</h2>
+                                    <p class="text-xs text-gray-500 truncate">${stats.totalSessions} chats • ${stats.totalMessages} messages</p>
                                 </div>
                             </div>
-                            <button id="logout-btn" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Logout">
-                                <span class="text-lg">🚪</span>
+                            <button id="logout-btn" class="group p-2 md:p-2.5 bg-gray-100 hover:bg-red-50 rounded-lg transition-all duration-200 flex-shrink-0 border border-gray-200 hover:border-red-200 flex items-center justify-center" title="Logout">
+                                <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-500 group-hover:text-red-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
                             </button>
                         </div>
                         
                         <!-- New Chat Button -->
-                        <button id="new-chat-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2">
-                            <span class="text-lg">+</span>
+                        <button id="new-chat-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 md:px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 text-sm md:text-base">
+                            <span class="text-base md:text-lg">+</span>
                             <span>New Chat</span>
                         </button>
                     </div>
                     
                     <!-- Chat History -->
                     <div class="flex-1 overflow-y-auto">
-                        <div id="chat-history" class="p-2">
+                        <div id="chat-history" class="p-1 md:p-2">
                             ${this.renderChatHistory()}
                         </div>
                     </div>
                     
                     <!-- Sidebar Footer -->
-                    <div class="p-4 border-t border-gray-200">
+                    <div class="p-3 md:p-4 border-t border-gray-200">
                         <!-- Account Settings -->
                         <div class="mb-3">
-                            <button id="delete-account-btn" class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center space-x-2">
-                                <span>🗑️</span>
-                                <span>Delete Account</span>
+                            <button id="delete-account-btn" class="group w-full text-left px-3 py-2.5 text-sm bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-lg transition-all duration-200 flex items-center space-x-3">
+                                <div class="w-8 h-8 bg-red-100 group-hover:bg-red-200 rounded-full flex items-center justify-center transition-colors">
+                                    <svg class="w-4 h-4 text-red-500 group-hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span class="text-gray-700 group-hover:text-red-600 font-medium transition-colors">Delete Account</span>
+                                    <p class="text-xs text-gray-500 group-hover:text-red-500 transition-colors">Permanently remove</p>
+                                </div>
                             </button>
                         </div>
                         
                         <div class="flex items-center justify-between text-xs text-gray-500">
-                            <span class="flex items-center space-x-1">
+                            <span class="flex items-center space-x-1.5 md:space-x-1">
                                 <span class="w-2 h-2 rounded-full ${apiStatus.isConfigured ? 'bg-green-500' : 'bg-red-500'}"></span>
                                 <span>${apiStatus.isConfigured ? 'API Ready' : 'API Not Configured'}</span>
                             </span>
-                            <button id="toggle-sidebar-btn" class="text-gray-400 hover:text-gray-600" title="Toggle Sidebar">
-                                <span class="text-lg">⬅</span>
+                            <button id="toggle-sidebar-btn" class="group p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200 border border-gray-200" title="Toggle Sidebar">
+                                <svg class="w-4 h-4 text-gray-500 group-hover:text-gray-700 transition-colors transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
                             </button>
                         </div>
                     </div>
                 </div>
                 
+                <!-- Mobile Overlay -->
+                ${!this.state.sidebarCollapsed ? `
+                    <div class="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden" id="sidebar-overlay"></div>
+                ` : ''}
+                
                 <!-- Main Chat Area -->
-                <div class="flex-1 flex flex-col">
+                <div class="flex-1 flex flex-col ${!this.state.sidebarCollapsed ? 'md:ml-0' : ''}">
                     <!-- Chat Header -->
-                    <div class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-                        <div class="flex items-center space-x-3">
+                    <div class="bg-white border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 flex justify-between items-center">
+                        <div class="flex items-center space-x-2 md:space-x-3 min-w-0 flex-1">
                             ${this.state.sidebarCollapsed ? `
-                                <button id="show-sidebar-btn" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Show Sidebar">
-                                    <span class="text-lg">☰</span>
+                                <button id="show-sidebar-btn" class="group p-2 md:p-2.5 bg-gray-100 hover:bg-blue-50 rounded-lg transition-all duration-200 flex-shrink-0 border border-gray-200 hover:border-blue-200" title="Show Sidebar">
+                                    <svg class="w-4 h-4 md:w-5 md:h-5 text-gray-500 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                                    </svg>
                                 </button>
                             ` : ''}
-                            <div>
-                                <h1 class="text-xl font-bold text-gray-800">${currentChat ? currentChat.title : 'AI Chatbot'}</h1>
-                                <p class="text-sm text-gray-600">
+                            <div class="min-w-0 flex-1">
+                                <h1 class="text-base md:text-xl font-bold text-gray-800 truncate hidden md:block">${currentChat ? currentChat.title : 'AI Chatbot'}</h1>
+                                <p class="text-xs md:text-sm text-gray-600 truncate hidden lg:block ${!currentChat ? 'hidden lg:block' : ''}">
                                     ${currentChat ? 
                                         `${currentChat.messages.length} messages • ${utils.formatTimestamp(currentChat.updatedAt)}` : 
                                         'Start a new conversation'
@@ -162,33 +182,63 @@ class ChatApp {
                             </div>
                         </div>
                         
-                        <div class="flex items-center space-x-2">
-                            <button id="theme-toggle-btn" class="w-10 h-10 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors theme-toggle" title="Toggle ${this.state.currentTheme === 'dark' ? 'light' : 'dark'} mode">
-                                <span class="text-lg">${this.state.currentTheme === 'dark' ? '☀️' : '🌙'}</span>
+                        <div class="flex items-center space-x-2 md:space-x-1.5 flex-shrink-0 overflow-x-auto scrollbar-hide">
+                            <!-- Theme Toggle Button -->
+                            <button id="theme-toggle-btn" class="group w-10 h-10 md:w-auto md:h-auto md:p-2.5 bg-gradient-to-br ${this.state.currentTheme === 'dark' ? 'from-amber-100 to-yellow-100 hover:from-amber-200 hover:to-yellow-200' : 'from-slate-100 to-gray-100 hover:from-slate-200 hover:to-gray-200'} rounded-xl md:rounded-lg transition-all duration-300 theme-toggle border-2 md:border border-gray-200 hover:border-gray-300 shadow-md hover:shadow-lg flex-shrink-0 flex items-center justify-center" title="Toggle ${this.state.currentTheme === 'dark' ? 'light' : 'dark'} mode">
+                                ${this.state.currentTheme === 'dark' ? `
+                                    <svg class="w-5 h-5 md:w-5 md:h-5 text-amber-600 group-hover:text-amber-700" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/>
+                                    </svg>
+                                ` : `
+                                    <svg class="w-5 h-5 md:w-5 md:h-5 text-slate-600 group-hover:text-slate-700" fill="currentColor" viewBox="0 0 24 24">
+                                        <path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z" clip-rule="evenodd"/>
+                                    </svg>
+                                `}
                             </button>
-                            <button id="download-pdf-btn" class="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm transition-colors" ${!currentChat || currentChat.messages.length === 0 ? 'disabled' : ''} title="Download chat as PDF">
-                                📄 PDF
+                            
+                            <!-- PDF Download Button -->
+                            <button id="download-pdf-btn" class="group w-10 h-10 md:w-auto md:h-auto md:px-3 md:py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-xl md:rounded-lg text-xs md:text-sm transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed md:space-x-1.5 border-2 md:border border-purple-400 flex-shrink-0 flex items-center justify-center" ${!currentChat || currentChat.messages.length === 0 ? 'disabled' : ''} title="Download chat as PDF">
+                                <svg class="w-4 h-4 md:w-4 md:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <span class="hidden md:inline font-medium text-white ml-1.5">PDF</span>
                             </button>
-                            <button id="auto-speak-btn" class="px-3 py-2 ${this.state.autoSpeak ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'} text-white rounded-lg text-sm transition-colors">
-                                ${this.state.autoSpeak ? '🔊 Auto' : '🔇 Manual'}
+                            
+                            <!-- Auto Speak Button -->
+                            <button id="auto-speak-btn" class="group w-10 h-10 md:w-auto md:h-auto md:px-3 md:py-2.5 ${this.state.autoSpeak ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600' : 'bg-gradient-to-r from-gray-500 to-slate-500 hover:from-gray-600 hover:to-slate-600'} text-white rounded-xl md:rounded-lg text-xs md:text-sm transition-all duration-200 shadow-md hover:shadow-lg md:space-x-1.5 border-2 md:border ${this.state.autoSpeak ? 'border-blue-400' : 'border-gray-400'} flex-shrink-0 flex items-center justify-center">
+                                ${this.state.autoSpeak ? `
+                                    <svg class="w-4 h-4 md:w-4 md:h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0 11.5 11.5 0 010 16.267.75.75 0 11-1.06-1.06 10 10 0 000-14.147.75.75 0 010-1.06zM15.932 7.757a.75.75 0 011.061 0 7.5 7.5 0 010 10.606.75.75 0 01-1.06-1.06 6 6 0 000-8.486.75.75 0 010-1.06z"/>
+                                    </svg>
+                                ` : `
+                                    <svg class="w-4 h-4 md:w-4 md:h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM17.78 9.22a.75.75 0 10-1.06 1.06L18.44 12l-1.72 1.72a.75.75 0 001.06 1.06L19.5 13.06l1.72 1.72a.75.75 0 101.06-1.06L20.56 12l1.72-1.72a.75.75 0 00-1.06-1.06L19.5 10.94l-1.72-1.72z"/>
+                                    </svg>
+                                `}
+                                <span class="hidden md:inline font-medium ml-1.5">${this.state.autoSpeak ? 'Auto' : 'Manual'}</span>
                             </button>
-                            <button id="clear-chat-btn" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors" ${!currentChat ? 'disabled' : ''}>
-                                Clear Chat
+                            
+                            <!-- Clear Chat Button -->
+                            <button id="clear-chat-btn" class="group w-10 h-10 md:w-auto md:h-auto md:px-3 md:py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl md:rounded-lg text-xs md:text-sm transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed md:space-x-1.5 border-2 md:border border-red-400 flex-shrink-0 flex items-center justify-center" ${!currentChat ? 'disabled' : ''}>
+                                <svg class="w-4 h-4 md:w-4 md:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                                <span class="hidden md:inline font-medium text-white ml-1.5">Clear</span>
                             </button>
                         </div>
                     </div>
                     
                     <!-- Chat Messages Container -->
-                    <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+                    <div id="chat-messages" class="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 space-y-2">
                         ${!currentChat ? `
-                            <div class="flex items-center justify-center h-full">
-                                <div class="text-center">
-                                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <span class="text-2xl">💬</span>
+                            <div class="flex items-center justify-center h-full p-4">
+                                <div class="text-center max-w-md">
+                                    <div class="w-12 h-12 md:w-16 md:h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+                                        <span class="text-xl md:text-2xl">💬</span>
                                     </div>
-                                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Welcome to AI Chatbot!</h3>
-                                    <p class="text-gray-600 mb-4">Start a new conversation or select a previous chat from the sidebar.</p>
-                                    <button id="start-new-chat-btn" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-medium transition-colors">
+                                    <h3 class="text-base md:text-lg font-semibold text-gray-800 mb-2">Welcome to AI Chatbot!</h3>
+                                    <p class="text-sm md:text-base text-gray-600 mb-4 px-4 block md:hidden lg:block">Start a new conversation or select a previous chat from the sidebar.</p>
+                                    <button id="start-new-chat-btn" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-medium transition-colors text-sm md:text-base">
                                         Start New Chat
                                     </button>
                                 </div>
@@ -197,10 +247,18 @@ class ChatApp {
                     </div>
                     
                     <!-- Input Area -->
-                    <div class="bg-white border-t border-gray-200 px-6 py-4">
-                        <div class="flex items-center space-x-3">
-                            <button id="voice-btn" class="w-12 h-12 ${this.state.isRecording ? 'bg-red-500 voice-recording' : 'bg-gray-200 hover:bg-gray-300'} rounded-full flex items-center justify-center transition-colors">
-                                <span class="text-xl">${this.state.isRecording ? '🔴' : '🎤'}</span>
+                    <div class="bg-white border-t border-gray-200 px-3 md:px-6 py-3 md:py-4">
+                        <div class="flex items-center space-x-2 md:space-x-3">
+                            <button id="voice-btn" class="group w-10 h-10 md:w-12 md:h-12 ${this.state.isRecording ? 'bg-gradient-to-r from-red-500 to-rose-500 voice-recording animate-pulse shadow-lg' : 'bg-gradient-to-br from-blue-100 to-indigo-100 hover:from-blue-200 hover:to-indigo-200 border border-blue-200 hover:border-blue-300'} rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 shadow-sm hover:shadow-md">
+                                ${this.state.isRecording ? `
+                                    <svg class="w-5 h-5 md:w-6 md:h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                                    </svg>
+                                ` : `
+                                    <svg class="w-5 h-5 md:w-6 md:h-6 text-blue-600 group-hover:text-blue-700 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                    </svg>
+                                `}
                             </button>
                             
                             <div class="flex-1 relative">
@@ -208,19 +266,17 @@ class ChatApp {
                                        id="message-input"
                                        placeholder="${this.state.isRecording ? 'Listening...' : 'Type your message here...'}"
                                        ${this.state.isRecording ? 'disabled' : ''}
-                                       class="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500 transition-colors">
+                                       class="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500 transition-colors text-sm md:text-base">
                             </div>
                             
-                            <button id="send-btn" class="w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-colors">
-                                <span class="text-xl">➤</span>
+                            <button id="send-btn" class="group w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-all duration-200 flex-shrink-0 shadow-sm hover:shadow-md border border-blue-400 disabled:border-gray-300">
+                                <svg class="w-5 h-5 md:w-6 md:h-6 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
                             </button>
                         </div>
                         
-                        <div class="flex justify-between items-center mt-2">
-                            <div class="flex space-x-2">
-                                <button id="test-arabic-btn" class="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded" title="Test Arabic TTS">🇸🇦 Test Arabic</button>
-                                <button id="test-urdu-btn" class="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded" title="Test Urdu TTS">🇵🇰 Test Urdu</button>
-                            </div>
+                        <div class="text-center mt-2">
                             <p class="text-xs text-gray-500">Press Ctrl+Enter to send • Escape to stop recording/speaking</p>
                         </div>
                     </div>
@@ -246,27 +302,35 @@ class ChatApp {
             const lastMessage = chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
             
             return `
-                <div class="chat-session-item group mb-2 p-3 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50'}" 
+                <div class="chat-session-item group mb-1.5 md:mb-2 p-2.5 md:p-3 rounded-lg cursor-pointer transition-all duration-200 ${isActive ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 shadow-sm' : 'hover:bg-gray-50 hover:shadow-sm border border-transparent hover:border-gray-200'}" 
                      data-chat-id="${chat.id}">
                     <div class="flex justify-between items-start mb-1">
-                        <div class="flex-1 mr-2">
-                            <h3 class="chat-title font-medium text-gray-800 text-sm truncate" data-chat-id="${chat.id}">${chat.title}</h3>
-                            <input type="text" class="chat-title-input hidden w-full text-sm font-medium text-gray-800 bg-transparent border border-blue-500 rounded px-1 py-0.5" 
+                        <div class="flex-1 mr-2 min-w-0">
+                            <h3 class="chat-title font-medium text-gray-800 text-xs md:text-sm truncate" data-chat-id="${chat.id}">${chat.title}</h3>
+                            <input type="text" class="chat-title-input hidden w-full text-xs md:text-sm font-medium text-gray-800 bg-white border-2 border-blue-400 rounded-md px-2 py-1 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all duration-200" 
                                    data-chat-id="${chat.id}" value="${chat.title.replace(/"/g, '&quot;')}" maxlength="50">
                         </div>
-                        <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="rename-chat-btn text-gray-400 hover:text-blue-500 text-sm" 
-                                    data-chat-id="${chat.id}" title="Rename chat">✏️</button>
-                            <button class="delete-chat-btn text-gray-400 hover:text-red-500 text-lg" 
-                                    data-chat-id="${chat.id}" title="Delete chat">×</button>
+                        <div class="flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 lg:group-hover:opacity-100 opacity-100 lg:opacity-0 transition-all duration-200">
+                            <button class="rename-chat-btn group/rename p-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 rounded-md transition-all duration-200 hover:shadow-sm" 
+                                    data-chat-id="${chat.id}" title="Rename chat">
+                                <svg class="w-3.5 h-3.5 text-blue-500 group-hover/rename:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                            </button>
+                            <button class="delete-chat-btn group/delete p-1.5 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 rounded-md transition-all duration-200 hover:shadow-sm" 
+                                    data-chat-id="${chat.id}" title="Delete chat">
+                                <svg class="w-3.5 h-3.5 text-red-500 group-hover/delete:text-red-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 truncate mb-1">
+                    <p class="text-xs text-gray-500 truncate mb-1 leading-relaxed">
                         ${lastMessage ? (lastMessage.type === 'user' ? 'You: ' : 'AI: ') + lastMessage.content : 'No messages yet'}
                     </p>
                     <div class="flex justify-between items-center text-xs text-gray-400">
-                        <span>${chat.messages.length} messages</span>
-                        <span>${utils.formatTimestamp(chat.updatedAt)}</span>
+                        <span class="truncate">${chat.messages.length} messages</span>
+                        <span class="text-xs flex-shrink-0 ml-2">${utils.formatTimestamp(chat.updatedAt)}</span>
                     </div>
                 </div>
             `;
@@ -314,16 +378,7 @@ class ChatApp {
                 autoSpeakBtn.addEventListener('click', () => this.toggleAutoSpeak());
             }
 
-            // Test Arabic/Urdu buttons
-            const testArabicBtn = document.getElementById('test-arabic-btn');
-            if (testArabicBtn) {
-                testArabicBtn.addEventListener('click', () => this.testArabicTTS());
-            }
 
-            const testUrduBtn = document.getElementById('test-urdu-btn');
-            if (testUrduBtn) {
-                testUrduBtn.addEventListener('click', () => this.testUrduTTS());
-            }
 
             // Theme toggle button
             const themeToggleBtn = document.getElementById('theme-toggle-btn');
@@ -373,6 +428,14 @@ class ChatApp {
             const showSidebarBtn = document.getElementById('show-sidebar-btn');
             if (showSidebarBtn) {
                 showSidebarBtn.addEventListener('click', () => this.toggleSidebar());
+            }
+
+
+
+            // Mobile overlay click
+            const sidebarOverlay = document.getElementById('sidebar-overlay');
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', () => this.toggleSidebar());
             }
 
             // Chat session clicks
@@ -478,35 +541,40 @@ class ChatApp {
             if (!chatContainer) return;
 
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message-bubble fade-in ${message.type === 'user' ? 'ml-auto' : 'mr-auto'} max-w-3xl mb-1`;
+            messageDiv.className = `message-bubble fade-in ${message.type === 'user' ? 'ml-auto' : 'mr-auto'} max-w-full md:max-w-3xl mb-1`;
             messageDiv.innerHTML = `
-                <div class="flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} items-start space-x-3">
+                <div class="flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} items-start space-x-2 md:space-x-3">
                     ${message.type === 'ai' ? `
-                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                            AI
+                        <div class="w-6 h-6 md:w-8 md:h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs md:text-sm font-bold flex-shrink-0">
+                            <span class="hidden md:inline">AI</span>
+                            <span class="md:hidden">🤖</span>
                         </div>
                     ` : ''}
                     
-                    <div class="relative ${message.type === 'user' ? 'bg-blue-500 text-white' : 'bg-white'} rounded-2xl px-4 py-3 shadow-sm max-w-full">
-                        <div class="text-sm leading-relaxed message-content">${this.formatContent(message.content)}</div>
-                        <div class="text-xs opacity-70 mt-2">${this.formatTime(message.timestamp)}</div>
+                    <div class="relative ${message.type === 'user' ? 'bg-blue-500 text-white' : 'bg-white'} rounded-2xl px-3 md:px-4 py-2.5 md:py-3 shadow-sm max-w-full ${message.type === 'user' ? 'max-w-[85%]' : 'max-w-[90%]'} md:max-w-full">
+                        <div class="text-sm md:text-sm leading-relaxed message-content break-words">${this.formatContent(message.content)}</div>
+                        <div class="text-xs opacity-70 mt-1.5 md:mt-2">${this.formatTime(message.timestamp)}</div>
                         
                         ${message.type === 'ai' ? `
-                            <div class="flex items-center space-x-2 mt-2 pt-2 border-t border-gray-100">
-                                <button onclick="chatApp.speakMessage(${index})" class="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors flex items-center space-x-1">
-                                    <span>🔉</span>
-                                    <span>Speak</span>
+                            <div class="flex items-center space-x-1.5 md:space-x-2 mt-2 pt-2 border-t border-gray-100">
+                                <button onclick="chatApp.speakMessage(${index})" class="group/speak text-xs px-2 md:px-3 py-1.5 md:py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-all duration-200 flex items-center space-x-1.5 border border-blue-200 hover:border-blue-300 shadow-sm hover:shadow-md">
+                                    <svg class="w-3.5 h-3.5 text-blue-600 group-hover/speak:text-blue-700 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                                    </svg>
+                                    <span class="hidden md:inline font-medium">Speak</span>
                                 </button>
-                                <button onclick="chatApp.copyMessage(${index})" class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors flex items-center space-x-1">
-                                    <span>📋</span>
-                                    <span>Copy</span>
+                                <button onclick="chatApp.copyMessage(${index})" class="group/copy text-xs px-2 md:px-3 py-1.5 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all duration-200 flex items-center space-x-1.5 border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md">
+                                    <svg class="w-3.5 h-3.5 text-gray-600 group-hover/copy:text-gray-700 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span class="hidden md:inline font-medium">Copy</span>
                                 </button>
                             </div>
                         ` : ''}
                     </div>
                     
                     ${message.type === 'user' ? `
-                        <div class="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        <div class="w-6 h-6 md:w-8 md:h-8 bg-gray-500 rounded-full flex items-center justify-center text-white text-xs md:text-sm font-bold flex-shrink-0">
                             ${this.props.user.name.charAt(0).toUpperCase()}
                         </div>
                     ` : ''}
@@ -1589,57 +1657,5 @@ class ChatApp {
         }
     }
 
-    // Test Arabic TTS functionality
-    testArabicTTS() {
-        console.log('🧪 Testing Arabic TTS...');
-        const arabicText = 'مرحباً، كيف حالك اليوم؟ هذا اختبار للصوت العربي.';
-        
-        // Force clear any cached voices first
-        if (voiceService && voiceService.clearLanguageCache) {
-            voiceService.clearLanguageCache('ar-SA');
-        }
-        
-        const message = { type: 'ai', content: arabicText, timestamp: Date.now() };
-        
-        // Add to chat temporarily to show what we're testing
-        this.state.messages.push(message);
-        this.addMessageToChat(message, this.state.messages.length - 1);
-        this.scrollToBottom();
-        
-        // Test TTS
-        voiceService.speak(arabicText, 'ar-SA')
-            .then(() => {
-                console.log('✅ Arabic TTS test completed');
-            })
-            .catch(error => {
-                console.error('❌ Arabic TTS test failed:', error);
-            });
-    }
 
-    // Test Urdu TTS functionality
-    testUrduTTS() {
-        console.log('🧪 Testing Urdu TTS...');
-        const urduText = 'آپ آج کیسے ہیں؟ یہ اردو آواز کا ٹیسٹ ہے۔';
-        
-        // Force clear any cached voices first
-        if (voiceService && voiceService.clearLanguageCache) {
-            voiceService.clearLanguageCache('ur-PK');
-        }
-        
-        const message = { type: 'ai', content: urduText, timestamp: Date.now() };
-        
-        // Add to chat temporarily to show what we're testing
-        this.state.messages.push(message);
-        this.addMessageToChat(message, this.state.messages.length - 1);
-        this.scrollToBottom();
-        
-        // Test TTS
-        voiceService.speak(urduText, 'ur-PK')
-            .then(() => {
-                console.log('✅ Urdu TTS test completed');
-            })
-            .catch(error => {
-                console.error('❌ Urdu TTS test failed:', error);
-            });
-    }
 }
