@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arabic & Urdu Speech Diagnostic</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .arabic-text { direction: rtl; font-size: 18px; margin: 10px 0; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 3px; cursor: pointer; }
+        .primary { background: #007bff; color: white; }
+        .success { background: #28a745; color: white; }
+        .danger { background: #dc3545; color: white; }
+        .warning { background: #ffc107; color: black; }
+        .info { background: #17a2b8; color: white; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Arabic & Urdu Speech Diagnostic Tool</h1>
+    
+    <div class="test-section">
+        <h3>📊 System Status</h3>
+        <div id="system-status"></div>
+        <button class="info" onclick="checkSystemStatus()">🔄 Refresh Status</button>
+    </div>
+
+    <div class="test-section">
+        <h3>🇸🇦 Arabic Tests</h3>
+        <div class="arabic-text">مرحباً، كيف حالك اليوم؟</div>
+        <button class="primary" onclick="testArabicBasic()">1️⃣ Basic Arabic Test</button>
+        <button class="success" onclick="testArabicGoogle()">2️⃣ Google TTS Test</button>
+        <button class="warning" onclick="testArabicBrowser()">3️⃣ Browser TTS Test</button>
+        <div id="arabic-log" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🇵🇰 Urdu Tests</h3>
+        <div class="arabic-text">آپ آج کیسے ہیں؟</div>
+        <button class="primary" onclick="testUrduBasic()">1️⃣ Basic Urdu Test</button>
+        <button class="success" onclick="testUrduGoogle()">2️⃣ Google TTS Test</button>
+        <button class="warning" onclick="testUrdHindi()">3️⃣ Hindi Fallback Test</button>
+        <div id="urdu-log" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🛠️ Manual TTS Tests</h3>
+        <button class="info" onclick="testManualArabic()">🔊 Direct Arabic Audio</button>
+        <button class="info" onclick="testManualUrdu()">🔊 Direct Urdu Audio</button>
+        <button class="danger" onclick="stopAll()">🛑 Stop All</button>
+        <div id="manual-log" class="log"></div>
+    </div>
+
+    <!-- Load Voice Service -->
+    <script src="config.js"></script>
+    <script src="services/voiceService_new.js"></script>
+
+    <script>
+        let logCounter = 0;
+
+        function log(message, elementId = 'system-status') {
+            logCounter++;
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}`;
+            
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.innerHTML += logMessage + '\n';
+                element.scrollTop = element.scrollHeight;
+            }
+            
+            console.log(logMessage);
+        }
+
+        function clearLog(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) element.innerHTML = '';
+        }
+
+        function checkSystemStatus() {
+            clearLog('system-status');
+            
+            // Check Speech Synthesis
+            if (window.speechSynthesis) {
+                log('✅ Speech Synthesis API available');
+                const voices = window.speechSynthesis.getVoices();
+                log(`📊 Total voices: ${voices.length}`);
+                
+                const arabicVoices = voices.filter(v => v.lang.startsWith('ar'));
+                const urduVoices = voices.filter(v => v.lang.startsWith('ur'));
+                const hindiVoices = voices.filter(v => v.lang.startsWith('hi'));
+                
+                log(`🇸🇦 Arabic voices: ${arabicVoices.length}`);
+                if (arabicVoices.length > 0) {
+                    arabicVoices.forEach(v => log(`  - ${v.name} (${v.lang})`));
+                }
+                
+                log(`🇵🇰 Urdu voices: ${urduVoices.length}`);
+                if (urduVoices.length > 0) {
+                    urduVoices.forEach(v => log(`  - ${v.name} (${v.lang})`));
+                }
+                
+                log(`🇮🇳 Hindi voices: ${hindiVoices.length} (Urdu fallback)`);
+                if (hindiVoices.length > 0) {
+                    hindiVoices.forEach(v => log(`  - ${v.name} (${v.lang})`));
+                }
+            } else {
+                log('❌ Speech Synthesis API not available');
+            }
+
+            // Check ResponsiveVoice
+            if (typeof responsiveVoice !== 'undefined') {
+                if (responsiveVoice.voiceSupport && responsiveVoice.voiceSupport()) {
+                    log('✅ ResponsiveVoice available and supported');
+                } else {
+                    log('⚠️ ResponsiveVoice loaded but not supported');
+                }
+            } else {
+                log('❌ ResponsiveVoice not available');
+            }
+
+            // Check Voice Service
+            if (typeof voiceService !== 'undefined') {
+                log('✅ Voice Service loaded');
+            } else {
+                log('❌ Voice Service not loaded');
+            }
+        }
+
+        function testArabicBasic() {
+            clearLog('arabic-log');
+            log('🧪 Testing Arabic with voice service...', 'arabic-log');
+            
+            const text = 'مرحباً، كيف حالك اليوم؟';
+            
+            if (typeof voiceService !== 'undefined') {
+                const detected = voiceService.detectLanguage(text);
+                log(`🌍 Detected language: ${detected}`, 'arabic-log');
+                
+                voiceService.speak(text, detected)
+                    .then(() => {
+                        log('✅ Arabic speech completed', 'arabic-log');
+                    })
+                    .catch(error => {
+                        log(`❌ Arabic speech failed: ${error}`, 'arabic-log');
+                    });
+            } else {
+                log('❌ Voice service not available', 'arabic-log');
+            }
+        }
+
+        function testArabicGoogle() {
+            clearLog('arabic-log');
+            log('🌐 Testing Google TTS for Arabic...', 'arabic-log');
+            
+            const text = 'مرحباً، كيف حالك اليوم؟';
+            
+            try {
+                const audio = document.createElement('audio');
+                const encodedText = encodeURIComponent(text);
+                const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=ar&client=tw-ob`;
+                
+                log(`🔗 Google TTS URL: ${url}`, 'arabic-log');
+                
+                audio.src = url;
+                audio.style.display = 'none';
+                document.body.appendChild(audio);
+                
+                audio.onloadeddata = () => {
+                    log('✅ Google TTS audio loaded', 'arabic-log');
+                    audio.play().then(() => {
+                        log('🔊 Google TTS playing...', 'arabic-log');
+                    }).catch(error => {
+                        log(`❌ Google TTS play failed: ${error}`, 'arabic-log');
+                    });
+                };
+                
+                audio.onended = () => {
+                    log('✅ Google TTS completed', 'arabic-log');
+                    audio.remove();
+                };
+                
+                audio.onerror = (error) => {
+                    log(`❌ Google TTS error: ${error}`, 'arabic-log');
+                    audio.remove();
+                };
+                
+            } catch (error) {
+                log(`❌ Google TTS failed: ${error}`, 'arabic-log');
+            }
+        }
+
+        function testArabicBrowser() {
+            clearLog('arabic-log');
+            log('🖥️ Testing browser TTS for Arabic...', 'arabic-log');
+            
+            const text = 'مرحباً، كيف حالك اليوم؟';
+            
+            if (window.speechSynthesis) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                const voices = window.speechSynthesis.getVoices();
+                const arabicVoices = voices.filter(v => v.lang.startsWith('ar'));
+                
+                if (arabicVoices.length > 0) {
+                    utterance.voice = arabicVoices[0];
+                    log(`🎤 Using Arabic voice: ${arabicVoices[0].name}`, 'arabic-log');
+                } else {
+                    log('⚠️ No Arabic voices, using default', 'arabic-log');
+                }
+                
+                utterance.lang = 'ar-SA';
+                utterance.rate = 0.9;
+                
+                utterance.onstart = () => log('🔊 Browser TTS started', 'arabic-log');
+                utterance.onend = () => log('✅ Browser TTS completed', 'arabic-log');
+                utterance.onerror = (error) => log(`❌ Browser TTS error: ${error.error}`, 'arabic-log');
+                
+                window.speechSynthesis.speak(utterance);
+            } else {
+                log('❌ Browser TTS not available', 'arabic-log');
+            }
+        }
+
+        function testUrduBasic() {
+            clearLog('urdu-log');
+            log('🧪 Testing Urdu with voice service...', 'urdu-log');
+            
+            const text = 'آپ آج کیسے ہیں؟';
+            
+            if (typeof voiceService !== 'undefined') {
+                const detected = voiceService.detectLanguage(text);
+                log(`🌍 Detected language: ${detected}`, 'urdu-log');
+                
+                voiceService.speak(text, detected)
+                    .then(() => {
+                        log('✅ Urdu speech completed', 'urdu-log');
+                    })
+                    .catch(error => {
+                        log(`❌ Urdu speech failed: ${error}`, 'urdu-log');
+                    });
+            } else {
+                log('❌ Voice service not available', 'urdu-log');
+            }
+        }
+
+        function testUrduGoogle() {
+            clearLog('urdu-log');
+            log('🌐 Testing Google TTS for Urdu (via Hindi)...', 'urdu-log');
+            
+            const text = 'آپ آج کیسے ہیں؟';
+            
+            try {
+                const audio = document.createElement('audio');
+                const encodedText = encodeURIComponent(text);
+                const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=hi&client=tw-ob`;
+                
+                log(`🔗 Google TTS URL (Hindi): ${url}`, 'urdu-log');
+                
+                audio.src = url;
+                audio.style.display = 'none';
+                document.body.appendChild(audio);
+                
+                audio.onloadeddata = () => {
+                    log('✅ Google TTS audio loaded', 'urdu-log');
+                    audio.play().then(() => {
+                        log('🔊 Google TTS playing...', 'urdu-log');
+                    }).catch(error => {
+                        log(`❌ Google TTS play failed: ${error}`, 'urdu-log');
+                    });
+                };
+                
+                audio.onended = () => {
+                    log('✅ Google TTS completed', 'urdu-log');
+                    audio.remove();
+                };
+                
+                audio.onerror = (error) => {
+                    log(`❌ Google TTS error: ${error}`, 'urdu-log');
+                    audio.remove();
+                };
+                
+            } catch (error) {
+                log(`❌ Google TTS failed: ${error}`, 'urdu-log');
+            }
+        }
+
+        function testUrdHindi() {
+            clearLog('urdu-log');
+            log('🇮🇳 Testing Hindi TTS for Urdu...', 'urdu-log');
+            
+            const text = 'آپ آج کیسے ہیں؟';
+            
+            if (window.speechSynthesis) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                const voices = window.speechSynthesis.getVoices();
+                const hindiVoices = voices.filter(v => v.lang.startsWith('hi'));
+                
+                if (hindiVoices.length > 0) {
+                    utterance.voice = hindiVoices[0];
+                    log(`🎤 Using Hindi voice: ${hindiVoices[0].name}`, 'urdu-log');
+                } else {
+                    log('⚠️ No Hindi voices, using default', 'urdu-log');
+                }
+                
+                utterance.lang = 'hi-IN';
+                utterance.rate = 0.9;
+                
+                utterance.onstart = () => log('🔊 Hindi TTS started', 'urdu-log');
+                utterance.onend = () => log('✅ Hindi TTS completed', 'urdu-log');
+                utterance.onerror = (error) => log(`❌ Hindi TTS error: ${error.error}`, 'urdu-log');
+                
+                window.speechSynthesis.speak(utterance);
+            } else {
+                log('❌ Browser TTS not available', 'urdu-log');
+            }
+        }
+
+        function testManualArabic() {
+            clearLog('manual-log');
+            log('🔊 Manual Arabic TTS test...', 'manual-log');
+            
+            // Simple direct approach
+            if (window.speechSynthesis) {
+                const text = 'Hello, this is Arabic text: مرحباً، كيف حالك اليوم؟';
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                utterance.onstart = () => log('🔊 Manual TTS started', 'manual-log');
+                utterance.onend = () => log('✅ Manual TTS completed', 'manual-log');
+                utterance.onerror = (error) => log(`❌ Manual TTS error: ${error.error}`, 'manual-log');
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function testManualUrdu() {
+            clearLog('manual-log');
+            log('🔊 Manual Urdu TTS test...', 'manual-log');
+            
+            // Simple direct approach
+            if (window.speechSynthesis) {
+                const text = 'Hello, this is Urdu text: آپ آج کیسے ہیں؟';
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                utterance.onstart = () => log('🔊 Manual TTS started', 'manual-log');
+                utterance.onend = () => log('✅ Manual TTS completed', 'manual-log');
+                utterance.onerror = (error) => log(`❌ Manual TTS error: ${error.error}`, 'manual-log');
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function stopAll() {
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            
+            if (typeof voiceService !== 'undefined') {
+                voiceService.stopAll();
+            }
+            
+            // Remove all audio elements
+            document.querySelectorAll('audio').forEach(audio => audio.remove());
+            
+            log('🛑 All audio stopped', 'manual-log');
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkSystemStatus();
+            }, 1000);
+        });
+
+        // Also check when voices change
+        if (window.speechSynthesis) {
+            window.speechSynthesis.onvoiceschanged = () => {
+                log('🔄 Voices changed, refreshing status...');
+                setTimeout(checkSystemStatus, 500);
+            };
+        }
+    </script>
+</body>
+</html> 

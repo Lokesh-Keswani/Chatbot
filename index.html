@@ -93,6 +93,36 @@
         setTimeout(initializeJsPDF, 100);
     </script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- ResponsiveVoice for cloud-based multilingual TTS -->
+    <script src="https://code.responsivevoice.org/responsivevoice.js?key=FREE"></script>
+    <script>
+        // Check ResponsiveVoice loading
+        let rvCheckAttempts = 0;
+        const maxRvAttempts = 10;
+        
+        function checkResponsiveVoice() {
+            rvCheckAttempts++;
+            
+            if (typeof responsiveVoice !== 'undefined' && responsiveVoice.voiceSupport) {
+                console.log('✅ ResponsiveVoice loaded successfully');
+                console.log('✅ ResponsiveVoice support:', responsiveVoice.voiceSupport());
+                return;
+            }
+            
+            console.log(`⏳ ResponsiveVoice loading... (attempt ${rvCheckAttempts}/${maxRvAttempts})`);
+            
+            if (rvCheckAttempts < maxRvAttempts) {
+                setTimeout(checkResponsiveVoice, 1000);
+            } else {
+                console.warn('⚠️ ResponsiveVoice failed to load after multiple attempts');
+                console.log('💡 This means Arabic/Urdu will use browser voices only');
+            }
+        }
+        
+        // Start checking after a short delay
+        setTimeout(checkResponsiveVoice, 1000);
+    </script>
 
     <style>
         @keyframes typing {
@@ -583,13 +613,92 @@
         }
     </script>
     
-    <script src="services/voiceService.js?v=19"></script>
+    <script src="services/voiceService_new.js?v=1"></script>
     <script>
         if (typeof voiceService === 'undefined') {
             console.error('❌ voiceService not loaded properly');
         } else {
-            console.log('✅ voiceService loaded successfully');
+            console.log('✅ NEW voiceService loaded successfully');
         }
+        
+        // Debug functions for Arabic and Urdu testing
+        window.testArabicVoice = function() {
+            console.log('🧪 Testing Arabic Voice...');
+            const arabicText = 'مرحباً، كيف حالك اليوم؟';
+            
+            console.log('Text:', arabicText);
+            console.log('Has Arabic script:', /[\u0600-\u06FF]/.test(arabicText));
+            
+            if (typeof voiceService !== 'undefined') {
+                // Clear any cached wrong voice for Arabic
+                voiceService.clearLanguageCache('ar-SA');
+                
+                const detected = voiceService.detectLanguage(arabicText);
+                console.log('Detected language:', detected);
+                
+                console.log('ResponsiveVoice available:', typeof responsiveVoice !== 'undefined' && responsiveVoice.voiceSupport());
+                
+                voiceService.speak(arabicText, detected)
+                    .then(() => console.log('✅ Arabic speech completed'))
+                    .catch(error => console.error('❌ Arabic speech failed:', error));
+            } else {
+                console.error('❌ voiceService not available');
+            }
+        };
+        
+        window.testUrduVoice = function() {
+            console.log('🧪 Testing Urdu Voice...');
+            const urduText = 'آپ آج کیسے ہیں؟';
+            
+            console.log('Text:', urduText);
+            console.log('Has Arabic script:', /[\u0600-\u06FF]/.test(urduText));
+            console.log('Has Urdu markers:', /[یہںپچگکڑ]/.test(urduText) || /\b(یہ|ہے|میں|کا|کی|سے|کو|اور|آپ|تم|وہ)\b/.test(urduText));
+            
+            if (typeof voiceService !== 'undefined') {
+                // Clear any cached wrong voice for Urdu
+                voiceService.clearLanguageCache('ur-PK');
+                
+                const detected = voiceService.detectLanguage(urduText);
+                console.log('Detected language:', detected);
+                
+                console.log('ResponsiveVoice available:', typeof responsiveVoice !== 'undefined' && responsiveVoice.voiceSupport());
+                
+                voiceService.speak(urduText, detected)
+                    .then(() => console.log('✅ Urdu speech completed'))
+                    .catch(error => console.error('❌ Urdu speech failed:', error));
+            } else {
+                console.error('❌ voiceService not available');
+            }
+        };
+        
+        // Additional debug function
+        window.clearVoiceCache = function() {
+            if (typeof voiceService !== 'undefined') {
+                voiceService.clearVoiceCache();
+                console.log('✅ All voice caches cleared');
+            }
+        };
+        
+        // Additional test function for Google TTS
+        window.testGoogleTTS = function() {
+            console.log('🧪 Testing Google TTS directly...');
+            const arabicText = 'مرحباً، كيف حالك اليوم؟';
+            
+            if (typeof voiceService !== 'undefined' && voiceService.useGoogleTranslateTTS) {
+                voiceService.useGoogleTranslateTTS(arabicText, 'ar', () => {
+                    console.log('✅ Google TTS test completed');
+                });
+            } else {
+                console.error('❌ Google TTS not available');
+            }
+        };
+        
+        // Log available commands
+        console.log('🔧 Debug Functions Available:');
+        console.log('  - testArabicVoice()');
+        console.log('  - testUrduVoice()');
+        console.log('  - testGoogleTTS()');
+        console.log('  - clearVoiceCache()');
     </script>
     
     <script src="services/mongoService.js?v=10"></script>

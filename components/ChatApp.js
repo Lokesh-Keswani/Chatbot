@@ -216,7 +216,11 @@ class ChatApp {
                             </button>
                         </div>
                         
-                        <div class="text-center mt-2">
+                        <div class="flex justify-between items-center mt-2">
+                            <div class="flex space-x-2">
+                                <button id="test-arabic-btn" class="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded" title="Test Arabic TTS">🇸🇦 Test Arabic</button>
+                                <button id="test-urdu-btn" class="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded" title="Test Urdu TTS">🇵🇰 Test Urdu</button>
+                            </div>
                             <p class="text-xs text-gray-500">Press Ctrl+Enter to send • Escape to stop recording/speaking</p>
                         </div>
                     </div>
@@ -310,6 +314,17 @@ class ChatApp {
                 autoSpeakBtn.addEventListener('click', () => this.toggleAutoSpeak());
             }
 
+            // Test Arabic/Urdu buttons
+            const testArabicBtn = document.getElementById('test-arabic-btn');
+            if (testArabicBtn) {
+                testArabicBtn.addEventListener('click', () => this.testArabicTTS());
+            }
+
+            const testUrduBtn = document.getElementById('test-urdu-btn');
+            if (testUrduBtn) {
+                testUrduBtn.addEventListener('click', () => this.testUrduTTS());
+            }
+
             // Theme toggle button
             const themeToggleBtn = document.getElementById('theme-toggle-btn');
             if (themeToggleBtn) {
@@ -400,7 +415,7 @@ class ChatApp {
                 }
                 if (e.key === 'Escape') {
                     this.stopVoiceRecording();
-                    voiceService.stopSpeaking();
+                    voiceService.stopAll();
                 }
             });
 
@@ -817,9 +832,9 @@ class ChatApp {
 
     stopAllAudio() {
         try {
-            // Stop any ongoing speech synthesis
+            // Stop any ongoing speech synthesis and listening
             if (voiceService) {
-                voiceService.stopSpeaking();
+                voiceService.stopAll();
                 voiceService.stopListening();
             }
             
@@ -842,31 +857,49 @@ class ChatApp {
             if (!message || message.type !== 'ai') return;
 
             if (this.state.speakingMessageId === index) {
-                voiceService.stopSpeaking();
+                voiceService.stopAll();
                 this.state.speakingMessageId = null;
             } else {
-                voiceService.stopSpeaking();
+                voiceService.stopAll();
                 this.state.speakingMessageId = index;
                 
                 // Clean the content for speech (remove markdown syntax)
                 const speechContent = this.formatContentForSpeech(message.content);
                 
-                voiceService.speak(speechContent, {
-                    onEnd: () => {
-                        this.state.speakingMessageId = null;
-                    },
-                    onError: (event) => {
-                        this.state.speakingMessageId = null;
-                        // Only show error for actual failures, not interruptions
-                        if (event.error !== 'interrupted' && event.error !== 'canceled') {
-                            utils.showToast('Speech synthesis failed', 'error');
-                        }
-                    }
+                console.log('🗣️ ChatApp: Starting speech for message', index);
+                console.log('📝 Original content:', message.content.substring(0, 100) + '...');
+                console.log('🧹 Cleaned content:', speechContent.substring(0, 100) + '...');
+                
+                // Check for Arabic/Urdu characters specifically
+                const hasArabicScript = /[\u0600-\u06FF]/.test(speechContent);
+                const hasUrduMarkers = /[یہںپچگکڑ]/.test(speechContent) || /\b(یہ|ہے|میں|کا|کی|سے|کو|اور|آپ|تم|وہ)\b/.test(speechContent);
+                console.log('🔍 Arabic script detected:', hasArabicScript);
+                console.log('🔍 Urdu markers detected:', hasUrduMarkers);
+                
+                // Detect language and use the new simplified voice service
+                const detectedLanguage = voiceService.detectLanguage(speechContent);
+                console.log(`🌍 Detected/Selected language: ${detectedLanguage}`);
+                
+                // Log ResponsiveVoice availability
+                if (typeof responsiveVoice !== 'undefined') {
+                    console.log('☁️ ResponsiveVoice available:', responsiveVoice.voiceSupport());
+                } else {
+                    console.log('❌ ResponsiveVoice not available');
+                }
+                
+                voiceService.speak(speechContent, detectedLanguage).then(() => {
+                    console.log('✅ Speech completed for message', index);
+                    this.state.speakingMessageId = null;
+                }).catch(error => {
+                    console.error('❌ Speech error for message', index, ':', error);
+                    this.state.speakingMessageId = null;
+                    utils.showToast('Voice not available for this language.', 'warning');
                 });
             }
         } catch (error) {
             console.error('Error speaking message:', error);
             this.state.speakingMessageId = null;
+            utils.showToast('Speech feature error', 'error');
         }
     }
 
@@ -1554,5 +1587,59 @@ class ChatApp {
             console.error('Error generating PDF:', error);
             utils.showToast('Failed to generate PDF. Please try again.', 'error');
         }
+    }
+
+    // Test Arabic TTS functionality
+    testArabicTTS() {
+        console.log('🧪 Testing Arabic TTS...');
+        const arabicText = 'مرحباً، كيف حالك اليوم؟ هذا اختبار للصوت العربي.';
+        
+        // Force clear any cached voices first
+        if (voiceService && voiceService.clearLanguageCache) {
+            voiceService.clearLanguageCache('ar-SA');
+        }
+        
+        const message = { type: 'ai', content: arabicText, timestamp: Date.now() };
+        
+        // Add to chat temporarily to show what we're testing
+        this.state.messages.push(message);
+        this.addMessageToChat(message, this.state.messages.length - 1);
+        this.scrollToBottom();
+        
+        // Test TTS
+        voiceService.speak(arabicText, 'ar-SA')
+            .then(() => {
+                console.log('✅ Arabic TTS test completed');
+            })
+            .catch(error => {
+                console.error('❌ Arabic TTS test failed:', error);
+            });
+    }
+
+    // Test Urdu TTS functionality
+    testUrduTTS() {
+        console.log('🧪 Testing Urdu TTS...');
+        const urduText = 'آپ آج کیسے ہیں؟ یہ اردو آواز کا ٹیسٹ ہے۔';
+        
+        // Force clear any cached voices first
+        if (voiceService && voiceService.clearLanguageCache) {
+            voiceService.clearLanguageCache('ur-PK');
+        }
+        
+        const message = { type: 'ai', content: urduText, timestamp: Date.now() };
+        
+        // Add to chat temporarily to show what we're testing
+        this.state.messages.push(message);
+        this.addMessageToChat(message, this.state.messages.length - 1);
+        this.scrollToBottom();
+        
+        // Test TTS
+        voiceService.speak(urduText, 'ur-PK')
+            .then(() => {
+                console.log('✅ Urdu TTS test completed');
+            })
+            .catch(error => {
+                console.error('❌ Urdu TTS test failed:', error);
+            });
     }
 }
