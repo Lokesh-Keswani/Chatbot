@@ -270,8 +270,8 @@ class ChatApp {
                             </div>
                             
                             <button id="send-btn" class="group w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-all duration-200 flex-shrink-0 shadow-sm hover:shadow-md border border-blue-400 disabled:border-gray-300">
-                                <svg class="w-5 h-5 md:w-6 md:h-6 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                <svg class="w-5 h-5 md:w-6 md:h-6 text-white group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 translate-x-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                                 </svg>
                             </button>
                         </div>
@@ -557,11 +557,18 @@ class ChatApp {
                         
                         ${message.type === 'ai' ? `
                             <div class="flex items-center space-x-1.5 md:space-x-2 mt-2 pt-2 border-t border-gray-100">
-                                <button onclick="chatApp.speakMessage(${index})" class="group/speak text-xs px-2 md:px-3 py-1.5 md:py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-all duration-200 flex items-center space-x-1.5 border border-blue-200 hover:border-blue-300 shadow-sm hover:shadow-md">
-                                    <svg class="w-3.5 h-3.5 text-blue-600 group-hover/speak:text-blue-700 transition-colors" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                                    </svg>
-                                    <span class="hidden md:inline font-medium">Speak</span>
+                                <button onclick="chatApp.speakMessage(${index})" id="speak-btn-${index}" class="group/speak text-xs px-2 md:px-3 py-1.5 md:py-2 ${this.state.speakingMessageId === index ? 'bg-red-100 hover:bg-red-200 text-red-700 border-red-200 hover:border-red-300' : 'bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-200 hover:border-blue-300'} rounded-lg transition-all duration-200 flex items-center space-x-1.5 border shadow-sm hover:shadow-md">
+                                    ${this.state.speakingMessageId === index ? `
+                                        <svg class="w-3.5 h-3.5 text-red-600 group-hover/speak:text-red-700 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M6 6h12v12H6z"/>
+                                        </svg>
+                                        <span class="hidden md:inline font-medium">Stop</span>
+                                    ` : `
+                                        <svg class="w-3.5 h-3.5 text-blue-600 group-hover/speak:text-blue-700 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                                        </svg>
+                                        <span class="hidden md:inline font-medium">Speak</span>
+                                    `}
                                 </button>
                                 <button onclick="chatApp.copyMessage(${index})" class="group/copy text-xs px-2 md:px-3 py-1.5 md:py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all duration-200 flex items-center space-x-1.5 border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md">
                                     <svg class="w-3.5 h-3.5 text-gray-600 group-hover/copy:text-gray-700 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -927,9 +934,11 @@ class ChatApp {
             if (this.state.speakingMessageId === index) {
                 voiceService.stopAll();
                 this.state.speakingMessageId = null;
+                this.updateSpeakButtons();
             } else {
                 voiceService.stopAll();
                 this.state.speakingMessageId = index;
+                this.updateSpeakButtons();
                 
                 // Clean the content for speech (remove markdown syntax)
                 const speechContent = this.formatContentForSpeech(message.content);
@@ -958,16 +967,51 @@ class ChatApp {
                 voiceService.speak(speechContent, detectedLanguage).then(() => {
                     console.log('✅ Speech completed for message', index);
                     this.state.speakingMessageId = null;
+                    this.updateSpeakButtons();
                 }).catch(error => {
                     console.error('❌ Speech error for message', index, ':', error);
                     this.state.speakingMessageId = null;
+                    this.updateSpeakButtons();
                     utils.showToast('Voice not available for this language.', 'warning');
                 });
             }
         } catch (error) {
             console.error('Error speaking message:', error);
             this.state.speakingMessageId = null;
+            this.updateSpeakButtons();
             utils.showToast('Speech feature error', 'error');
+        }
+    }
+
+    updateSpeakButtons() {
+        try {
+            // Update all speak buttons to reflect current state
+            this.state.messages.forEach((message, index) => {
+                if (message.type === 'ai') {
+                    const speakBtn = document.getElementById(`speak-btn-${index}`);
+                    if (speakBtn) {
+                        const isCurrentlySpeaking = this.state.speakingMessageId === index;
+                        
+                        // Update button classes
+                        speakBtn.className = `group/speak text-xs px-2 md:px-3 py-1.5 md:py-2 ${isCurrentlySpeaking ? 'bg-red-100 hover:bg-red-200 text-red-700 border-red-200 hover:border-red-300' : 'bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-200 hover:border-blue-300'} rounded-lg transition-all duration-200 flex items-center space-x-1.5 border shadow-sm hover:shadow-md`;
+                        
+                        // Update button content
+                        speakBtn.innerHTML = isCurrentlySpeaking ? `
+                            <svg class="w-3.5 h-3.5 text-red-600 group-hover/speak:text-red-700 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M6 6h12v12H6z"/>
+                            </svg>
+                            <span class="hidden md:inline font-medium">Stop</span>
+                        ` : `
+                            <svg class="w-3.5 h-3.5 text-blue-600 group-hover/speak:text-blue-700 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                            </svg>
+                            <span class="hidden md:inline font-medium">Speak</span>
+                        `;
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error updating speak buttons:', error);
         }
     }
 
