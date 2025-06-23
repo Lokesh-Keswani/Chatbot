@@ -10,6 +10,7 @@ class VoiceService {
         this.currentUtterance = null;
         this.currentAudio = null;
         this.currentPromise = null;
+        this.currentMultilingualSession = null;
         
         // Cache voices for consistency (same voice every time)
         this.voiceCache = {};
@@ -59,9 +60,15 @@ class VoiceService {
         console.log('🌍 Voices by language:', voicesByLang);
     }
 
-    // MAIN STOP FUNCTION - STOPS EVERYTHING
+    // MAIN STOP FUNCTION - STOPS EVERYTHING (FIXED - includes multilingual)
     stopAll() {
         console.log('🛑 STOPPING ALL AUDIO');
+        
+        // Stop multilingual session first
+        if (this.currentMultilingualSession) {
+            this.currentMultilingualSession.stop();
+            this.currentMultilingualSession = null;
+        }
         
         // Stop speech synthesis
         if (this.synthesis) {
@@ -130,6 +137,347 @@ class VoiceService {
         
         // Default to English for Latin text without special characters
         return 'en-US';
+    }
+
+    // NEW: Detect multilingual segments in text (FIXED - less aggressive)
+    detectMultilingualSegments(text) {
+        // First, check if text is actually multilingual (has significant non-Latin content)
+        const arabicCount = (text.match(/[\u0600-\u06FF]/g) || []).length;
+        const indicCount = (text.match(/[\u0900-\u097F\u0A80-\u0AFF\u0980-\u09FF\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/g) || []).length;
+        const chineseCount = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+        const totalNonLatin = arabicCount + indicCount + chineseCount;
+        
+        // If less than 3 non-Latin characters, treat as single language
+        if (totalNonLatin < 3) {
+            return [{
+                text: text,
+                language: this.detectLanguage(text)
+            }];
+        }
+        
+        const segments = [];
+        let currentSegment = '';
+        let currentLanguage = null;
+        
+        // Split text into meaningful chunks (words + spaces, not individual characters)
+        const tokens = text.match(/[\u0600-\u06FF\s]+|[\u0900-\u097F\s]+|[\u0A80-\u0AFF\s]+|[\u0980-\u09FF\s]+|[\u0B80-\u0BFF\s]+|[\u0C00-\u0C7F\s]+|[\u0C80-\u0CFF\s]+|[\u0D00-\u0D7F\s]+|[\u4e00-\u9fff\s]+|[\u3040-\u309f\u30a0-\u30ff\s]+|[\uac00-\ud7af\s]+|[\u0400-\u04ff\s]+|[a-zA-Z0-9\s.,!?;:'"()-]+/g) || [];
+        
+        for (let token of tokens) {
+            const cleanToken = token.trim();
+            if (!cleanToken) continue; // Skip empty tokens
+            
+            const tokenLanguage = this.detectLanguage(cleanToken);
+            
+            if (currentLanguage === null) {
+                // First token
+                currentLanguage = tokenLanguage;
+                currentSegment = cleanToken;
+            } else if (currentLanguage === tokenLanguage) {
+                // Same language, add to current segment
+                currentSegment += ' ' + cleanToken;
+            } else {
+                // Language changed, save current segment and start new one
+                if (currentSegment.trim()) {
+                    segments.push({
+                        text: currentSegment.trim(),
+                        language: currentLanguage
+                    });
+                }
+                currentLanguage = tokenLanguage;
+                currentSegment = cleanToken;
+            }
+        }
+        
+        // Add the last segment
+        if (currentSegment.trim()) {
+            segments.push({
+                text: currentSegment.trim(),
+                language: currentLanguage
+            });
+        }
+        
+        // Merge very short segments (less than 3 words) with adjacent segments
+        const mergedSegments = this.mergeShortSegments(segments);
+        
+        return mergedSegments;
+    }
+
+    // NEW: Merge short segments to avoid over-segmentation
+    mergeShortSegments(segments) {
+        if (segments.length <= 1) return segments;
+        
+        const merged = [];
+        let currentSegment = segments[0];
+        
+        for (let i = 1; i < segments.length; i++) {
+            const nextSegment = segments[i];
+            
+            // Count words in current segment
+            const currentWordCount = currentSegment.text.split(/\s+/).length;
+            const nextWordCount = nextSegment.text.split(/\s+/).length;
+            
+            // Merge if either segment is very short (less than 3 words) and languages are compatible
+            if ((currentWordCount < 3 || nextWordCount < 3) && this.shouldMergeSegments(currentSegment.language, nextSegment.language)) {
+                // Merge segments - use the language of the longer segment
+                const combinedText = currentSegment.text + ' ' + nextSegment.text;
+                const primaryLanguage = currentSegment.text.length >= nextSegment.text.length 
+                    ? currentSegment.language 
+                    : nextSegment.language;
+                
+                currentSegment = {
+                    text: combinedText,
+                    language: primaryLanguage
+                };
+            } else {
+                // Don't merge, save current and move to next
+                merged.push(currentSegment);
+                currentSegment = nextSegment;
+            }
+        }
+        
+        // Add the last segment
+        merged.push(currentSegment);
+        
+        return merged;
+    }
+
+    // NEW: Check if two language segments should be merged
+    shouldMergeSegments(lang1, lang2) {
+        // Same language
+        if (lang1 === lang2) return true;
+        
+        // Arabic script family (Arabic + Urdu)
+        if ((lang1 === 'ar-SA' || lang1 === 'ur-PK') && (lang2 === 'ar-SA' || lang2 === 'ur-PK')) {
+            return true;
+        }
+        
+        // Indic language family
+        const indicLanguages = ['hi-IN', 'gu-IN', 'bn-BD', 'ta-IN', 'te-IN', 'kn-IN', 'ml-IN'];
+        if (indicLanguages.includes(lang1) && indicLanguages.includes(lang2)) {
+            return true;
+        }
+        
+        // Don't merge different script families
+        return false;
+    }
+
+    // NEW: Speak multilingual text segment by segment (FIXED - with stop handling)
+    async speakMultilingualText(segments, resolve) {
+        let currentIndex = 0;
+        let stopped = false;
+        
+        // Store reference to this multilingual session
+        this.currentMultilingualSession = {
+            stop: () => {
+                stopped = true;
+                console.log('🛑 Multilingual speech stopped');
+            }
+        };
+        
+        const speakNextSegment = () => {
+            // Check if stopped
+            if (stopped || !this.isSpeaking) {
+                console.log('🛑 Multilingual speech interrupted');
+                this.isSpeaking = false;
+                this.currentPromise = null;
+                this.currentMultilingualSession = null;
+                resolve();
+                return;
+            }
+            
+            if (currentIndex >= segments.length) {
+                // All segments completed
+                this.isSpeaking = false;
+                this.currentPromise = null;
+                this.currentMultilingualSession = null;
+                console.log('✅ Multilingual speech completed');
+                resolve();
+                return;
+            }
+            
+            const segment = segments[currentIndex];
+            console.log(`🗣️ Speaking segment ${currentIndex + 1}/${segments.length}: "${segment.text}" (${segment.language})`);
+            
+            // Create a promise for this segment
+            const segmentPromise = new Promise((segmentResolve) => {
+                this.speakSingleLanguageSegment(segment.text, segment.language, segmentResolve);
+            });
+            
+            segmentPromise.then(() => {
+                if (stopped || !this.isSpeaking) {
+                    return; // Don't continue if stopped
+                }
+                currentIndex++;
+                // Small pause between segments for natural flow
+                setTimeout(() => {
+                    speakNextSegment();
+                }, 300);
+            }).catch((error) => {
+                console.error(`❌ Error speaking segment ${currentIndex + 1}:`, error);
+                currentIndex++;
+                speakNextSegment();
+            });
+        };
+        
+        speakNextSegment();
+    }
+
+    // NEW: Speak a single language segment (similar to original speak function but simplified)
+    async speakSingleLanguageSegment(text, language, resolve) {
+        console.log(`🔊 Speaking segment: "${text}" in ${language}`);
+        
+        // For Gujarati, prioritize cloud TTS over browser TTS
+        if (language === 'gu-IN') {
+            console.log('🎯 Gujarati segment - trying cloud TTS first');
+            
+            // Try ResponsiveVoice first for Gujarati
+            if (this.tryResponsiveVoiceSegment(text, language, resolve)) {
+                return;
+            }
+            
+            // If ResponsiveVoice fails, try Hindi voice with Gujarati text
+            console.log('🔄 ResponsiveVoice not available, trying Hindi voice');
+            const hindiVoice = this.getVoice('hi-IN');
+            if (hindiVoice) {
+                console.log(`🎯 Using Hindi voice for Gujarati: ${hindiVoice.name}`);
+                this.useBrowserTTSSegment(text, 'hi-IN', resolve);
+                return;
+            }
+            
+            // Last resort: transliterate to English phonetics
+            console.log('🔄 No Hindi voice, transliterating to English');
+            const transliteratedText = this.transliterateGujaratiToEnglish(text);
+            console.log(`🔤 Transliterated: "${transliteratedText}"`);
+            this.useBrowserTTSSegment(transliteratedText, 'en-US', resolve);
+            return;
+        }
+        
+        // For English, use browser TTS directly
+        if (language.startsWith('en')) {
+            this.useBrowserTTSSegment(text, language, resolve);
+            return;
+        }
+        
+        // For Arabic/Urdu, use special handling
+        if (language === 'ar-SA' || language === 'ur-PK') {
+            console.log(`🌍 ${language === 'ar-SA' ? 'Arabic' : 'Urdu'} segment - using specialized TTS`);
+            this.handleArabicUrduTTSSegment(text, language, resolve);
+            return;
+        }
+        
+        // For other languages, try ResponsiveVoice first, then browser TTS
+        console.log(`🌐 Trying ResponsiveVoice for ${language} segment...`);
+        if (!this.tryResponsiveVoiceSegment(text, language, resolve)) {
+            console.log(`🔄 ResponsiveVoice failed/unavailable for ${language}, falling back to browser TTS`);
+            this.useBrowserTTSSegment(text, language, resolve);
+        }
+    }
+
+    // NEW: ResponsiveVoice for segments (non-blocking version)
+    tryResponsiveVoiceSegment(text, language, resolve) {
+        if (typeof responsiveVoice === 'undefined' || !responsiveVoice.voiceSupport()) {
+            return false;
+        }
+
+        const voiceMap = {
+            'es-ES': 'Spanish Female', 'fr-FR': 'French Female', 'de-DE': 'Deutsch Female',
+            'it-IT': 'Italian Female', 'pt-BR': 'Brazilian Portuguese Female', 'ru-RU': 'Russian Female',
+            'hi-IN': 'Hindi Female', 'gu-IN': 'Hindi Female', 'bn-BD': 'Bengali Female',
+            'ta-IN': 'Tamil Female', 'te-IN': 'Telugu Female', 'kn-IN': 'Hindi Female',
+            'ml-IN': 'Hindi Female', 'mr-IN': 'Hindi Female', 'pa-IN': 'Hindi Female',
+            'ur-PK': 'Hindi Female', 'ar-SA': 'Arabic Female', 'zh-CN': 'Chinese Female',
+            'ja-JP': 'Japanese Female', 'ko-KR': 'Korean Female'
+        };
+
+        const voice = voiceMap[language];
+        if (!voice) return false;
+        
+        let finished = false;
+        
+        responsiveVoice.speak(text, voice, {
+            rate: language === 'gu-IN' ? 0.8 : 0.9,
+            pitch: 1,
+            volume: 1,
+            onend: () => {
+                if (!finished) {
+                    finished = true;
+                    resolve();
+                }
+            },
+            onerror: () => {
+                if (!finished) {
+                    finished = true;
+                    this.useBrowserTTSSegment(text, language, resolve);
+                }
+            }
+        });
+        
+        setTimeout(() => {
+            if (!finished) {
+                finished = true;
+                responsiveVoice.cancel();
+                this.useBrowserTTSSegment(text, language, resolve);
+            }
+        }, 8000);
+        
+        return true;
+    }
+
+    // NEW: Browser TTS for segments
+    useBrowserTTSSegment(text, language, resolve) {
+        const voice = this.getVoice(language);
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        if (voice) {
+            utterance.voice = voice;
+            utterance.lang = voice.lang;
+        } else {
+            utterance.lang = language;
+        }
+        
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+        
+        utterance.onend = () => resolve();
+        utterance.onerror = () => resolve(); // Continue even if segment fails
+        
+        this.synthesis.speak(utterance);
+    }
+
+    // NEW: Arabic/Urdu TTS for segments
+    handleArabicUrduTTSSegment(text, language, resolve) {
+        // Try Google TTS first for Arabic/Urdu segments
+        this.useGoogleTranslateTTSSegment(text, language === 'ar-SA' ? 'ar' : 'ur', resolve);
+    }
+
+    // NEW: Google Translate TTS for segments
+    useGoogleTranslateTTSSegment(text, lang, resolve) {
+        const urls = [
+            `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${lang}&client=tw-ob`,
+            `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${lang}&client=gtx`
+        ];
+        
+        const audio = new Audio();
+        let urlIndex = 0;
+        
+        const tryNextUrl = () => {
+            if (urlIndex >= urls.length) {
+                // All URLs failed, fallback to browser TTS
+                this.useBrowserTTSSegment(text, lang === 'ar' ? 'ar-SA' : 'ur-PK', resolve);
+                return;
+            }
+            
+            audio.src = urls[urlIndex];
+            audio.load();
+            urlIndex++;
+        };
+        
+        audio.onended = () => resolve();
+        audio.onerror = () => tryNextUrl();
+        audio.oncanplaythrough = () => audio.play();
+        
+        tryNextUrl();
     }
 
     // Enhanced voice selection with better quality prioritization
@@ -227,7 +575,7 @@ class VoiceService {
         return selectedVoice;
     }
 
-    // MAIN SPEAK FUNCTION - Enhanced for all languages
+    // MAIN SPEAK FUNCTION - Enhanced for all languages with multilingual support
     async speak(text, language = 'en-US') {
         // Stop any current speech
         this.stopAll();
@@ -238,6 +586,32 @@ class VoiceService {
             this.currentPromise = { resolve };
             
             console.log(`🔊 Speaking: "${text}" in ${language}`);
+            
+            // Check if text contains multiple languages (only for significant multilingual content)
+            const languageSegments = this.detectMultilingualSegments(text);
+            
+            if (languageSegments.length > 1) {
+                console.log(`🌍 Multilingual text detected! Found ${languageSegments.length} language segments:`);
+                languageSegments.forEach((segment, index) => {
+                    console.log(`  ${index + 1}. "${segment.text}" (${segment.language})`);
+                });
+                
+                // Double-check: make sure we actually have meaningful segments
+                const hasSignificantSegments = languageSegments.some(segment => 
+                    segment.text.split(/\s+/).length >= 2 && 
+                    segment.language !== 'en-US'
+                );
+                
+                if (hasSignificantSegments) {
+                    this.speakMultilingualText(languageSegments, resolve);
+                    return;
+                } else {
+                    console.log('🔄 Segments too small, treating as single language');
+                }
+            }
+            
+            // Single language - proceed with normal flow
+            console.log(`🗣️ Single language detected: ${language}`);
             
             // Show user notification for Arabic/Urdu text
             if (language === 'ar-SA' || language === 'ur-PK') {
@@ -1228,6 +1602,46 @@ class VoiceService {
             console.log('❌ ResponsiveVoice not available');
         }
     }
+
+    // NEW: Test multilingual speech functionality
+    testMultilingualSpeech() {
+        console.log('🌍 Testing multilingual speech functionality...');
+        
+        const testTexts = [
+            'Hello, how are you? مرحبا كيف حالك؟',
+            'Good morning! صباح الخير and have a great day!',
+            'I love programming میں پروگرامنگ سے محبت کرتا ہوں',
+            'Welcome to our app! آپ کا خوش آمدید',
+            'The weather is nice today الطقس جميل اليوم',
+            'Thank you شکریہ for using our service!'
+        ];
+        
+        console.log('📝 Test cases:');
+        testTexts.forEach((text, index) => {
+            console.log(`  ${index + 1}. "${text}"`);
+            
+            // Show language detection
+            const segments = this.detectMultilingualSegments(text);
+            console.log(`     Detected segments:`, segments);
+        });
+        
+        console.log('\n🎯 To test speech, use: voiceService.speak("Hello مرحبا")');
+        console.log('🔧 To test specific text: voiceService.speak("' + testTexts[0] + '")');
+    }
+
+    // NEW: Quick test function for multilingual text
+    testMixedLanguage(text) {
+        console.log(`🧪 Testing mixed language text: "${text}"`);
+        
+        const segments = this.detectMultilingualSegments(text);
+        console.log(`📊 Detected ${segments.length} language segments:`);
+        segments.forEach((segment, index) => {
+            console.log(`  ${index + 1}. "${segment.text}" → ${segment.language}`);
+        });
+        
+        console.log('🔊 Starting multilingual speech...');
+        this.speak(text);
+    }
 }
 
 // Replace the old service
@@ -1271,8 +1685,23 @@ window.voiceStatus = () => {
     return status;
 };
 
-console.log('🎤 ENHANCED Voice Service loaded!');
-console.log('🧪 Test: testVoice("Hello world", "en-US")');
-console.log('🌍 Test all: testAllLanguages()');
+// NEW: Test multilingual functionality
+window.testMultilingual = () => {
+    window.voiceService.testMultilingualSpeech();
+};
+
+window.testMixedText = (text) => {
+    if (!text) {
+        text = 'Hello, how are you? مرحبا كيف حالك؟';
+        console.log('🔧 Using default mixed text. To test custom text: testMixedText("your text here")');
+    }
+    window.voiceService.testMixedLanguage(text);
+};
+
+console.log('🎤 ENHANCED Voice Service with MULTILINGUAL SUPPORT loaded!');
+console.log('🧪 Test single: testVoice("Hello world", "en-US")');
+console.log('🌍 Test all languages: testAllLanguages()');
+console.log('🌍 Test multilingual: testMultilingual()');
+console.log('🔀 Test mixed text: testMixedText("Hello مرحبا")');
 console.log('🛑 Stop: stopVoice()');
 console.log('📊 Status: voiceStatus()'); 
