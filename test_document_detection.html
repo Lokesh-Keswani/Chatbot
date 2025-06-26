@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Detection Test</title>
+</head>
+<body>
+    <h1>Document Detection Test</h1>
+    
+    <div>
+        <h2>Test Cases:</h2>
+        <button onclick="testDetection('create a resume')">Test: create a resume</button><br><br>
+        <button onclick="testDetection('write a business plan')">Test: write a business plan</button><br><br>
+        <button onclick="testDetection('generate a marketing strategy')">Test: generate a marketing strategy</button><br><br>
+        <button onclick="testDetection('make a technical specification')">Test: make a technical specification</button><br><br>
+        <button onclick="testDetection('draft a user manual')">Test: draft a user manual</button><br><br>
+        <button onclick="testDetection('Hello how are you?')">Test: Hello how are you? (should not detect)</button><br><br>
+    </div>
+    
+    <div id="results"></div>
+
+    <script src="config.js"></script>
+    <script src="services/documentService.js"></script>
+    
+    <script>
+        function testDetection(text) {
+            console.log(`Testing: "${text}"`);
+            const result = documentService.detectDocumentType(text);
+            console.log(`Result: ${result}`);
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML += `<p><strong>"${text}"</strong> → <span style="color: ${result ? 'green' : 'red'}">${result || 'No document type detected'}</span></p>`;
+        }
+        
+        // Test on page load
+        window.onload = function() {
+            console.log('Document service status:', documentService.getStatus());
+        };
+    </script>
+</body>
+</html> 

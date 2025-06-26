@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Creation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .success { color: green; }
+        .error { color: red; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Document Creation Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>1. Document Type Detection Test</h2>
+        <button onclick="testDetection()">Test Document Detection</button>
+        <div id="detection-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Document Creation Test</h2>
+        <input type="text" id="test-prompt" placeholder="Enter test prompt (e.g., 'create a resume')" style="width: 400px;">
+        <button onclick="testDocumentCreation()">Test Document Creation</button>
+        <div id="creation-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. AI Service Integration Test</h2>
+        <button onclick="testAIServiceIntegration()">Test AI Service Integration</button>
+        <div id="ai-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Full End-to-End Test</h2>
+        <button onclick="testEndToEnd()">Test Complete Flow</button>
+        <div id="e2e-results"></div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="services/documentService.js"></script>
+    <script src="services/aiService.js"></script>
+    
+    <script>
+        // Test document detection
+        function testDetection() {
+            const testCases = [
+                'create a resume',
+                'write a business plan',
+                'generate a marketing strategy',
+                'make a technical specification',
+                'draft a user manual',
+                'create a cover letter',
+                'write an essay',
+                'generate a report',
+                'Hello how are you?'
+            ];
+            
+            const resultsDiv = document.getElementById('detection-results');
+            resultsDiv.innerHTML = '<h3>Detection Results:</h3>';
+            
+            testCases.forEach(testCase => {
+                const result = documentService.detectDocumentType(testCase);
+                const color = result ? 'green' : 'red';
+                resultsDiv.innerHTML += `<div class="result"><strong>"${testCase}"</strong> → <span style="color: ${color}">${result || 'No detection'}</span></div>`;
+                console.log(`Detection test: "${testCase}" → ${result}`);
+            });
+        }
+        
+        // Test document creation
+        function testDocumentCreation() {
+            const prompt = document.getElementById('test-prompt').value || 'create a resume';
+            const resultsDiv = document.getElementById('creation-results');
+            
+            resultsDiv.innerHTML = '<div>Testing document creation...</div>';
+            
+            try {
+                // Test detection
+                const detectedType = documentService.detectDocumentType(prompt);
+                console.log('Detected type:', detectedType);
+                
+                if (detectedType) {
+                    // Test document generation
+                    const docRequest = documentService.generateDocumentFromScratch(prompt, detectedType);
+                    console.log('Document request:', docRequest);
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="result success">
+                            <strong>✅ Document Creation Successful!</strong><br>
+                            <strong>Detected Type:</strong> ${detectedType}<br>
+                            <strong>Generated Prompt:</strong><br>
+                            <textarea readonly>${docRequest.prompt}</textarea>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = '<div class="result error">❌ No document type detected</div>';
+                }
+            } catch (error) {
+                console.error('Document creation test error:', error);
+                resultsDiv.innerHTML = `<div class="result error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Test AI service integration
+        async function testAIServiceIntegration() {
+            const resultsDiv = document.getElementById('ai-results');
+            resultsDiv.innerHTML = '<div>Testing AI service integration...</div>';
+            
+            try {
+                // Check if AI service is available
+                if (typeof aiService === 'undefined') {
+                    resultsDiv.innerHTML = '<div class="result error">❌ AI Service not available</div>';
+                    return;
+                }
+                
+                // Test the smart document request handler
+                const testMessage = 'create a simple resume';
+                console.log('Testing AI service with:', testMessage);
+                
+                // Simulate the smart document request
+                const result = await aiService.handleSmartDocumentRequest(testMessage, null, 'test-user');
+                
+                if (result) {
+                    resultsDiv.innerHTML = `
+                        <div class="result success">
+                            <strong>✅ AI Service Integration Successful!</strong><br>
+                            <strong>Response Preview:</strong><br>
+                            <textarea readonly>${result.substring(0, 500)}...</textarea>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = '<div class="result error">❌ AI Service returned null (may be normal for fallback)</div>';
+                }
+            } catch (error) {
+                console.error('AI service test error:', error);
+                resultsDiv.innerHTML = `<div class="result error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Test complete end-to-end flow
+        async function testEndToEnd() {
+            const resultsDiv = document.getElementById('e2e-results');
+            resultsDiv.innerHTML = '<div>Testing complete end-to-end flow...</div>';
+            
+            try {
+                // Test with a document creation request
+                const testMessage = 'create a professional resume for a software engineer';
+                console.log('Testing end-to-end with:', testMessage);
+                
+                // This would normally go through the chat interface
+                const response = await aiService.generateResponse(testMessage, {
+                    userId: 'test-user',
+                    isSmartRequest: true
+                });
+                
+                if (response && response.includes('resume')) {
+                    resultsDiv.innerHTML = `
+                        <div class="result success">
+                            <strong>✅ End-to-End Test Successful!</strong><br>
+                            <strong>Generated Response:</strong><br>
+                            <textarea readonly>${response.substring(0, 1000)}...</textarea>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="result error">
+                            <strong>❌ End-to-End Test Failed</strong><br>
+                            <strong>Response:</strong><br>
+                            <textarea readonly>${response}</textarea>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('End-to-end test error:', error);
+                resultsDiv.innerHTML = `<div class="result error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Initialize on page load
+        window.onload = function() {
+            console.log('Document Service Status:', documentService?.getStatus());
+            console.log('AI Service Status:', aiService?.getApiStatus());
+        };
+    </script>
+</body>
+</html> 

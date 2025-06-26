@@ -21,7 +21,10 @@ class ChatApp {
             chatSessions: chatSessions,
             currentChatId: currentChatId,
             sidebarCollapsed: false,
-            currentTheme: utils.getCurrentTheme()
+            currentTheme: utils.getCurrentTheme(),
+            uploadedFiles: [], // Store uploaded files
+            isDragOver: false, // Track drag-and-drop state
+            isProcessingFile: false // Track file processing state
         };
         
         // Make globally available
@@ -247,8 +250,74 @@ class ChatApp {
                     </div>
                     
                     <!-- Input Area -->
-                    <div class="bg-white border-t border-gray-200 px-3 md:px-6 py-3 md:py-4">
+                    <div class="bg-white border-t border-gray-200 px-3 md:px-6 py-3 md:py-4" id="input-area">
+                        <!-- File Upload Drop Zone -->
+                        ${this.state.isDragOver ? `
+                            <div class="border-2 border-dashed border-blue-400 bg-blue-50 rounded-lg p-6 mb-4 text-center">
+                                <svg class="w-12 h-12 mx-auto text-blue-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <p class="text-blue-600 font-medium">Drop your file here</p>
+                                <p class="text-sm text-blue-500">Supports PDF, DOCX, DOC, TXT files</p>
+                            </div>
+                        ` : ''}
+                        
+                        <!-- Uploaded Files Display -->
+                        ${this.state.uploadedFiles.length > 0 ? `
+                            <div class="mb-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-medium text-gray-700">📎 Uploaded Files (Click to preview)</span>
+                                    <span class="text-xs text-gray-500">${this.state.uploadedFiles.length} file${this.state.uploadedFiles.length > 1 ? 's' : ''} ready</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    ${this.state.uploadedFiles.map((file, index) => `
+                                        <div class="flex items-center bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 hover:border-blue-300 rounded-lg px-3 py-2 text-sm cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md group" 
+                                             onclick="chatApp.previewUploadedFile(${index})" 
+                                             title="Click to view file content • ${file.characterCount || 'Unknown'} characters">
+                                            <svg class="w-4 h-4 text-blue-600 mr-2 group-hover:text-blue-700 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                            </svg>
+                                            <div class="flex-1 min-w-0 mr-2">
+                                                <span class="text-blue-800 font-medium truncate block max-w-32">${file.name}</span>
+                                                <span class="text-xs text-blue-600">${file.type?.toUpperCase() || 'FILE'} • ${Math.round((file.characterCount || 0) / 1000)}K chars</span>
+                                            </div>
+                                            <div class="flex items-center space-x-1">
+                                                <svg class="w-3 h-3 text-blue-500 opacity-60 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="Preview">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                                </svg>
+                                                <button onclick="event.stopPropagation(); chatApp.removeUploadedFile(${index})" class="text-red-400 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50" title="Remove file">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                                    💡 <strong>Tip:</strong> Click on any file to preview its content before sending. Leave the message empty for auto-summary, or add instructions for custom processing.
+                                </div>
+                            </div>
+                        ` : ''}
+                        
                         <div class="flex items-center space-x-2 md:space-x-3">
+                            <!-- File Upload Button -->
+                            <button id="file-upload-btn" class="group w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-green-100 to-emerald-100 hover:from-green-200 hover:to-emerald-200 border border-green-200 hover:border-green-300 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 shadow-sm hover:shadow-md ${this.state.isProcessingFile ? 'animate-pulse' : ''}" title="Upload file">
+                                ${this.state.isProcessingFile ? `
+                                    <svg class="w-5 h-5 md:w-6 md:h-6 text-green-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                ` : `
+                                    <svg class="w-5 h-5 md:w-6 md:h-6 text-green-600 group-hover:text-green-700 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                    </svg>
+                                `}
+                            </button>
+                            <input type="file" id="file-input" class="hidden" accept=".pdf,.docx,.doc,.txt" multiple>
+                            
+                            <!-- Voice Button -->
                             <button id="voice-btn" class="group w-10 h-10 md:w-12 md:h-12 ${this.state.isRecording ? 'bg-gradient-to-r from-red-500 to-rose-500 voice-recording animate-pulse shadow-lg' : 'bg-gradient-to-br from-blue-100 to-indigo-100 hover:from-blue-200 hover:to-indigo-200 border border-blue-200 hover:border-blue-300'} rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 shadow-sm hover:shadow-md">
                                 ${this.state.isRecording ? `
                                     <svg class="w-5 h-5 md:w-6 md:h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -264,7 +333,7 @@ class ChatApp {
                             <div class="flex-1 relative">
                                 <input type="text" 
                                        id="message-input"
-                                       placeholder="${this.state.isRecording ? 'Listening...' : 'Type your message here...'}"
+                                       placeholder="${this.state.isRecording ? 'Listening...' : this.state.uploadedFiles.length > 0 ? 'Add instructions or leave empty for auto-summary...' : 'Type your message here...'}"
                                        ${this.state.isRecording ? 'disabled' : ''}
                                        class="w-full px-3 md:px-4 py-2.5 md:py-3 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500 transition-colors text-sm md:text-base">
                             </div>
@@ -277,7 +346,10 @@ class ChatApp {
                         </div>
                         
                         <div class="text-center mt-2">
-                            <p class="text-xs text-gray-500">Press Ctrl+Enter to send • Escape to stop recording/speaking</p>
+                            <p class="text-xs text-gray-500">
+                                📎 Upload files • 🎤 Voice input • ⌨️ Ctrl+Enter to send • 🔄 Escape to stop
+                                ${this.state.uploadedFiles.length > 0 ? ' • 📄 Smart document generation enabled' : ''}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -364,6 +436,26 @@ class ChatApp {
             const voiceBtn = document.getElementById('voice-btn');
             if (voiceBtn) {
                 voiceBtn.addEventListener('click', () => this.toggleVoiceRecording());
+            }
+
+            // File upload button
+            const fileUploadBtn = document.getElementById('file-upload-btn');
+            if (fileUploadBtn) {
+                fileUploadBtn.addEventListener('click', () => this.triggerFileUpload());
+            }
+
+            // File input
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => this.handleFileSelection(e));
+            }
+
+            // Drag and drop events
+            const inputArea = document.getElementById('input-area');
+            if (inputArea) {
+                inputArea.addEventListener('dragover', (e) => this.handleDragOver(e));
+                inputArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+                inputArea.addEventListener('drop', (e) => this.handleFileDrop(e));
             }
 
             // Download PDF button
@@ -552,7 +644,46 @@ class ChatApp {
                     ` : ''}
                     
                     <div class="relative ${message.type === 'user' ? 'bg-blue-500 text-white' : 'bg-white'} rounded-2xl px-3 md:px-4 py-2.5 md:py-3 shadow-sm max-w-full ${message.type === 'user' ? 'max-w-[85%]' : 'max-w-[90%]'} md:max-w-full">
+                        ${message.attachments && message.attachments.length > 0 ? `
+                            <div class="mb-2 pb-2 border-b ${message.type === 'user' ? 'border-blue-400' : 'border-gray-200'}">
+                                <div class="text-xs ${message.type === 'user' ? 'text-blue-100' : 'text-gray-500'} mb-1">📎 Attached files:</div>
+                                <div class="flex flex-wrap gap-1">
+                                    ${message.attachments.map((filename, attachIndex) => `
+                                        <div class="text-xs px-2 py-1 ${message.type === 'user' ? 'bg-blue-400 text-white hover:bg-blue-300' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} rounded-md cursor-pointer transition-colors flex items-center space-x-1" 
+                                             onclick="chatApp.showFileContent('${filename}', ${index})" 
+                                             title="Click to view file content">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                            </svg>
+                                            <span>${filename}</span>
+                                            <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                            </svg>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                         <div class="text-sm md:text-sm leading-relaxed message-content break-words">${this.formatContent(message.content)}</div>
+                        ${message.hasDownload ? `
+                            <div class="mt-3 pt-2 border-t ${message.type === 'user' ? 'border-blue-400' : 'border-gray-200'}">
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="chatApp.downloadGeneratedDocument('${message.content.replace(/'/g, "\\'")}', 'html')" class="text-xs px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center space-x-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-4-4m4 4l4-4m-6 4h8a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"></path>
+                                        </svg>
+                                        <span>HTML</span>
+                                    </button>
+                                    <button onclick="chatApp.downloadGeneratedDocument('${message.content.replace(/'/g, "\\'")}', 'txt')" class="text-xs px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center space-x-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-4-4m4 4l4-4m-6 4h8a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"></path>
+                                        </svg>
+                                        <span>TXT</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ` : ''}
                         <div class="text-xs opacity-70 mt-1.5 md:mt-2">${this.formatTime(message.timestamp)}</div>
                         
                         ${message.type === 'ai' ? `
@@ -709,19 +840,19 @@ class ChatApp {
     async sendMessage() {
         try {
             const input = document.getElementById('message-input');
-            if (!input || !input.value.trim()) return;
+            const content = input ? input.value.trim() : '';
+            
+            // Check if we have files or content
+            if (!content && this.state.uploadedFiles.length === 0) {
+                return;
+            }
 
-            const content = input.value.trim();
+            // Clear input
+            if (input) {
             input.value = '';
             this.state.inputMessage = '';
             this.updateSendButton();
-
-            // Add user message immediately
-            const userMessage = {
-                type: 'user',
-                content: content,
-                timestamp: Date.now()
-            };
+            }
 
             // Ensure we have a current chat
             if (!this.state.currentChatId) {
@@ -729,18 +860,67 @@ class ChatApp {
                 this.state.currentChatId = newChat.id;
             }
 
-            // Add to database first and get the message with ID
+            // Handle file uploads
+            let fileContent = '';
+            let fileNames = [];
+            let fileData = [];
+            
+            if (this.state.uploadedFiles.length > 0) {
+                fileNames = this.state.uploadedFiles.map(f => f.name);
+                fileContent = this.state.uploadedFiles.map(f => f.content).join('\n\n---\n\n');
+                fileData = this.state.uploadedFiles.map(f => ({
+                    name: f.name,
+                    content: f.content,
+                    type: f.type,
+                    characterCount: f.characterCount,
+                    wordCount: f.wordCount
+                }));
+                
+                // Add user message with file attachment info
+                const userMessage = {
+                    type: 'user',
+                    content: content || '[File uploaded - auto-processing]',
+                    timestamp: Date.now(),
+                    attachments: fileNames,
+                    fileData: fileData // Store file content for later access
+                };
+
             const savedUserMessage = databaseService.addMessage(this.props.user.id, userMessage, this.state.currentChatId);
             this.state.messages.push(savedUserMessage);
-            console.log('✅ User message added:', savedUserMessage.content.substring(0, 50) + '...', 'Total messages:', this.state.messages.length);
             this.addMessageToChat(savedUserMessage, this.state.messages.length - 1);
             this.scrollToBottom();
+
+                // Clear uploaded files
+                this.state.uploadedFiles = [];
+                this.render();
+                this.setupEventListeners();
+                this.loadMessages();
+            } else {
+                // Regular text message
+                const userMessage = {
+                    type: 'user',
+                    content: content,
+                    timestamp: Date.now()
+                };
+
+                const savedUserMessage = databaseService.addMessage(this.props.user.id, userMessage, this.state.currentChatId);
+                this.state.messages.push(savedUserMessage);
+                this.addMessageToChat(savedUserMessage, this.state.messages.length - 1);
+                this.scrollToBottom();
+            }
 
             // Show typing indicator
             this.addTypingIndicator();
 
-            // Get AI response
-            const aiResponse = await aiService.generateResponse(content);
+            // Get AI response with context
+            let aiResponse;
+            if (fileContent) {
+                // Use enhanced AI service with file context
+                aiResponse = await aiService.generateResponseWithContext(content, fileContent, this.props.user.id);
+            } else {
+                // Regular AI response
+                aiResponse = await aiService.generateResponse(content);
+            }
             
             // Remove typing indicator
             this.removeTypingIndicator();
@@ -749,13 +929,13 @@ class ChatApp {
                 const aiMessage = {
                     type: 'ai',
                     content: aiResponse,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    hasDownload: fileContent && (content.includes('resume') || content.includes('letter') || content.includes('blog') || content.includes('document'))
                 };
 
                 // Add to database first and get the message with ID
                 const savedAiMessage = databaseService.addMessage(this.props.user.id, aiMessage, this.state.currentChatId);
                 this.state.messages.push(savedAiMessage);
-                console.log('✅ AI message added:', savedAiMessage.content.substring(0, 50) + '...', 'Total messages:', this.state.messages.length);
                 this.addMessageToChat(savedAiMessage, this.state.messages.length - 1);
                 this.scrollToBottom();
 
@@ -1701,5 +1881,559 @@ class ChatApp {
         }
     }
 
+    // File Upload Methods
+    triggerFileUpload() {
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) {
+            fileInput.click();
+        }
+    }
 
+    async handleFileSelection(event) {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            await this.processFiles(Array.from(files));
+        }
+    }
+
+    handleDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!this.state.isDragOver) {
+            this.state.isDragOver = true;
+            this.render();
+            this.setupEventListeners();
+        }
+    }
+
+    handleDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Only hide drop zone if we're actually leaving the input area
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+            this.state.isDragOver = false;
+            this.render();
+            this.setupEventListeners();
+        }
+    }
+
+    async handleFileDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        this.state.isDragOver = false;
+        const files = event.dataTransfer.files;
+        
+        if (files && files.length > 0) {
+            await this.processFiles(Array.from(files));
+        }
+        
+        this.render();
+        this.setupEventListeners();
+    }
+
+    async processFiles(files) {
+        console.log('📤 Processing', files.length, 'files');
+        this.state.isProcessingFile = true;
+        this.render();
+        this.setupEventListeners();
+
+        try {
+            for (const file of files) {
+                // Validate file type
+                if (!this.isValidFileType(file.name)) {
+                    utils.showToast(`File type not supported: ${file.name}`, 'error');
+                    continue;
+                }
+
+                // Validate file size (10MB limit)
+                if (!this.isValidFileSize(file.size)) {
+                    utils.showToast(`File too large: ${file.name} (max 10MB)`, 'error');
+                    continue;
+                }
+
+                console.log(`📄 Processing file: ${file.name}`);
+                
+                try {
+                    const result = await aiService.processFileUpload(file, this.props.user.id);
+                    
+                    // Add to uploaded files
+                    this.state.uploadedFiles.push({
+                        name: result.fileName,
+                        content: result.content,
+                        type: result.fileType,
+                        wordCount: result.wordCount,
+                        characterCount: result.characterCount
+                    });
+
+                    console.log(`✅ File processed: ${result.fileName} (${result.characterCount} chars)`);
+                    utils.showToast(`File processed: ${result.fileName}`, 'success');
+                    
+                } catch (error) {
+                    console.error('❌ File processing error:', error);
+                    utils.showToast(`Failed to process: ${file.name}`, 'error');
+                }
+            }
+            
+        } catch (error) {
+            console.error('❌ Error processing files:', error);
+            utils.showToast('Error processing files', 'error');
+        } finally {
+            this.state.isProcessingFile = false;
+            this.render();
+            this.setupEventListeners();
+            this.loadMessages();
+        }
+    }
+
+    removeUploadedFile(index) {
+        if (index >= 0 && index < this.state.uploadedFiles.length) {
+            const fileName = this.state.uploadedFiles[index].name;
+            this.state.uploadedFiles.splice(index, 1);
+            this.render();
+            this.setupEventListeners();
+            this.loadMessages();
+            utils.showToast(`Removed: ${fileName}`, 'info');
+        }
+    }
+
+    isValidFileType(fileName) {
+        const allowedExtensions = ['pdf', 'docx', 'doc', 'txt'];
+        const extension = fileName.split('.').pop().toLowerCase();
+        return allowedExtensions.includes(extension);
+    }
+
+    isValidFileSize(fileSize, maxSizeMB = 10) {
+        return fileSize <= maxSizeMB * 1024 * 1024;
+    }
+
+    // Download generated document
+    async downloadGeneratedDocument(content, format = 'html') {
+        try {
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const filename = `generated_document_${timestamp}`;
+            
+            await aiService.downloadDocument(content, filename, format);
+            utils.showToast('Document downloaded successfully!', 'success');
+            
+        } catch (error) {
+            console.error('❌ Download error:', error);
+            utils.showToast('Failed to download document', 'error');
+        }
+    }
+
+    // Show file content in modal
+    showFileContent(filename, messageIndex) {
+        try {
+            // Find the file content from the message or uploaded files
+            let fileContent = null;
+            let fileInfo = null;
+            
+            // Check current uploaded files first
+            const uploadedFile = this.state.uploadedFiles.find(f => f.name === filename);
+            if (uploadedFile) {
+                fileContent = uploadedFile.content;
+                fileInfo = uploadedFile;
+            } else {
+                // Look for file content in message history
+                const message = this.state.messages[messageIndex];
+                if (message && message.fileData) {
+                    const fileInMessage = message.fileData.find(f => f.name === filename);
+                    if (fileInMessage) {
+                        fileContent = fileInMessage.content;
+                        fileInfo = fileInMessage;
+                    }
+                }
+                
+                // If still not found, check all messages for file data
+                if (!fileContent) {
+                    for (const msg of this.state.messages) {
+                        if (msg.fileData) {
+                            const foundFile = msg.fileData.find(f => f.name === filename);
+                            if (foundFile) {
+                                fileContent = foundFile.content;
+                                fileInfo = foundFile;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!fileContent) {
+                    utils.showToast('File content not available. File may have been processed on server only.', 'warning');
+                    return;
+                }
+            }
+            
+            if (!fileContent) {
+                utils.showToast('Unable to access file content', 'error');
+                return;
+            }
+            
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.id = 'file-content-modal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                        <div class="flex items-center space-x-3">
+                            <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">${filename}</h3>
+                                <p class="text-sm text-gray-500">
+                                    ${fileInfo ? `${fileInfo.characterCount || fileContent.length} characters • ${Math.ceil((fileInfo.wordCount || fileContent.split(' ').length) / 250)} min read` : 'File content'}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button id="copy-file-content" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                <span>Copy</span>
+                            </button>
+                            <button id="close-file-modal" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal Content -->
+                    <div class="flex-1 overflow-y-auto p-4">
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <span class="text-sm font-medium text-gray-700">📄 Original Extracted Content</span>
+                                <div class="flex space-x-2">
+                                    <button id="toggle-wrap" class="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors">Toggle Wrap</button>
+                                    <button id="increase-font" class="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors">A+</button>
+                                    <button id="decrease-font" class="text-xs px-2 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded transition-colors">A-</button>
+                                </div>
+                            </div>
+                            <pre id="file-content-display" class="whitespace-pre-wrap text-sm text-gray-800 font-mono leading-relaxed bg-white p-4 rounded border border-gray-200 max-h-96 overflow-y-auto" style="font-size: 14px;">${fileContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                            <div class="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                                <p class="text-xs text-blue-700 mb-1">ℹ️ <strong>About this content:</strong></p>
+                                <p class="text-xs text-blue-600">This is the exact text content extracted from your ${fileInfo?.type?.toUpperCase() || 'file'}. The original document formatting (fonts, colors, layouts) is not preserved during text extraction, but all textual content is maintained exactly as it appears in the source.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal Footer -->
+                    <div class="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <div class="flex items-center space-x-4">
+                                <span>📄 ${fileInfo?.type?.toUpperCase() || 'Unknown'} file</span>
+                                <span>📊 ${fileContent.split('\\n').length} lines</span>
+                                <span>🔤 ${fileContent.length} characters</span>
+                            </div>
+                            <button id="close-file-modal-btn" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Add event listeners
+            const closeModal = () => {
+                document.body.removeChild(modal);
+                document.removeEventListener('keydown', handleEscape);
+            };
+            
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    closeModal();
+                }
+            };
+            
+            const copyContent = async () => {
+                try {
+                    await navigator.clipboard.writeText(fileContent);
+                    utils.showToast('File content copied to clipboard!', 'success');
+                } catch (error) {
+                    console.error('Copy failed:', error);
+                    utils.showToast('Failed to copy content', 'error');
+                }
+            };
+            
+            // Bind events
+            document.getElementById('close-file-modal').addEventListener('click', closeModal);
+            document.getElementById('close-file-modal-btn').addEventListener('click', closeModal);
+            document.getElementById('copy-file-content').addEventListener('click', copyContent);
+            document.addEventListener('keydown', handleEscape);
+            
+            // Font size controls
+            const contentDisplay = document.getElementById('file-content-display');
+            let currentFontSize = 14;
+            
+            document.getElementById('increase-font').addEventListener('click', () => {
+                currentFontSize = Math.min(currentFontSize + 2, 24);
+                contentDisplay.style.fontSize = currentFontSize + 'px';
+            });
+            
+            document.getElementById('decrease-font').addEventListener('click', () => {
+                currentFontSize = Math.max(currentFontSize - 2, 10);
+                contentDisplay.style.fontSize = currentFontSize + 'px';
+            });
+            
+            document.getElementById('toggle-wrap').addEventListener('click', () => {
+                if (contentDisplay.classList.contains('whitespace-pre-wrap')) {
+                    contentDisplay.classList.remove('whitespace-pre-wrap');
+                    contentDisplay.classList.add('whitespace-pre');
+                    document.getElementById('toggle-wrap').textContent = 'Enable Wrap';
+                } else {
+                    contentDisplay.classList.remove('whitespace-pre');
+                    contentDisplay.classList.add('whitespace-pre-wrap');
+                    document.getElementById('toggle-wrap').textContent = 'Disable Wrap';
+                }
+            });
+            
+            // Click outside to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+            
+            console.log('📄 File content modal displayed for:', filename);
+            
+        } catch (error) {
+            console.error('❌ Error showing file content:', error);
+            utils.showToast('Failed to display file content', 'error');
+        }
+    }
+
+    // Preview uploaded file before sending
+    previewUploadedFile(index) {
+        try {
+            if (index < 0 || index >= this.state.uploadedFiles.length) {
+                utils.showToast('File not found', 'error');
+                return;
+            }
+
+            const file = this.state.uploadedFiles[index];
+            console.log('📄 Previewing uploaded file:', file.name);
+            
+            // Use the existing showFileContent method but with file data directly
+            this.showFileContentForUploadedFile(file);
+            
+        } catch (error) {
+            console.error('❌ Error previewing file:', error);
+            utils.showToast('Failed to preview file', 'error');
+        }
+    }
+
+    // Show file content for uploaded files (before sending)
+    showFileContentForUploadedFile(fileInfo) {
+        try {
+            const fileContent = fileInfo.content;
+            
+            if (!fileContent) {
+                utils.showToast('File content not available', 'error');
+                return;
+            }
+            
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.id = 'file-content-modal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">${fileInfo.name}</h3>
+                                <p class="text-sm text-gray-600">
+                                    📄 Preview • ${fileInfo.characterCount || fileContent.length} characters • ${Math.ceil((fileInfo.wordCount || fileContent.split(' ').length) / 250)} min read
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                                Ready to Send
+                            </div>
+                            <button id="copy-file-content" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                <span>Copy</span>
+                            </button>
+                            <button id="close-file-modal" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal Content -->
+                    <div class="flex-1 overflow-y-auto p-4">
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <span class="text-sm font-medium text-gray-700">📄 Original Extracted Content</span>
+                                <div class="flex space-x-2">
+                                    <button id="toggle-wrap" class="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors">Toggle Wrap</button>
+                                    <button id="increase-font" class="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors">A+</button>
+                                    <button id="decrease-font" class="text-xs px-2 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded transition-colors">A-</button>
+                                </div>
+                            </div>
+                            <pre id="file-content-display" class="whitespace-pre-wrap text-sm text-gray-800 font-mono leading-relaxed bg-white p-4 rounded border border-gray-200 max-h-96 overflow-y-auto" style="font-size: 14px;">${fileContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                            <div class="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                                <p class="text-xs text-blue-700 mb-1">ℹ️ <strong>File Preview Mode:</strong></p>
+                                <p class="text-xs text-blue-600">This is the exact text content that will be sent to the AI for processing. You can now close this preview and either send the file for auto-summary or add your own instructions in the chat input.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal Footer -->
+                    <div class="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <div class="flex items-center space-x-4">
+                                <span>📄 ${fileInfo.type?.toUpperCase() || 'Unknown'} file</span>
+                                <span>📊 ${fileContent.split('\\n').length} lines</span>
+                                <span>🔤 ${fileContent.length} characters</span>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button id="send-file-now" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center space-x-2">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                                    </svg>
+                                    <span>Send Now</span>
+                                </button>
+                                <button id="close-file-modal-btn" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                                    Close Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Add event listeners
+            const closeModal = () => {
+                document.body.removeChild(modal);
+                document.removeEventListener('keydown', handleEscape);
+            };
+            
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    closeModal();
+                }
+            };
+            
+            const copyContent = async () => {
+                try {
+                    await navigator.clipboard.writeText(fileContent);
+                    utils.showToast('File content copied to clipboard!', 'success');
+                } catch (error) {
+                    console.error('Copy failed:', error);
+                    utils.showToast('Failed to copy content', 'error');
+                }
+            };
+            
+            const sendFileNow = () => {
+                closeModal();
+                this.sendMessage(); // Send the file immediately
+            };
+            
+            // Bind events
+            document.getElementById('close-file-modal').addEventListener('click', closeModal);
+            document.getElementById('close-file-modal-btn').addEventListener('click', closeModal);
+            document.getElementById('copy-file-content').addEventListener('click', copyContent);
+            document.getElementById('send-file-now').addEventListener('click', sendFileNow);
+            document.addEventListener('keydown', handleEscape);
+            
+            // Font size controls
+            const contentDisplay = document.getElementById('file-content-display');
+            let currentFontSize = 14;
+            
+            document.getElementById('increase-font').addEventListener('click', () => {
+                currentFontSize = Math.min(currentFontSize + 2, 24);
+                contentDisplay.style.fontSize = currentFontSize + 'px';
+            });
+            
+            document.getElementById('decrease-font').addEventListener('click', () => {
+                currentFontSize = Math.max(currentFontSize - 2, 10);
+                contentDisplay.style.fontSize = currentFontSize + 'px';
+            });
+            
+            document.getElementById('toggle-wrap').addEventListener('click', () => {
+                if (contentDisplay.classList.contains('whitespace-pre-wrap')) {
+                    contentDisplay.classList.remove('whitespace-pre-wrap');
+                    contentDisplay.classList.add('whitespace-pre');
+                    document.getElementById('toggle-wrap').textContent = 'Enable Wrap';
+                } else {
+                    contentDisplay.classList.remove('whitespace-pre');
+                    contentDisplay.classList.add('whitespace-pre-wrap');
+                    document.getElementById('toggle-wrap').textContent = 'Disable Wrap';
+                }
+            });
+            
+            // Click outside to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+            
+            console.log('📄 File preview modal displayed for:', fileInfo.name);
+            
+        } catch (error) {
+            console.error('❌ Error showing file preview:', error);
+            utils.showToast('Failed to display file preview', 'error');
+        }
+    }
+
+    downloadAsPDF(index) {
+        const message = this.state.messages[index];
+        if (!message) return;
+        const docType = message.documentType || 'document';
+        const doc = new jsPDF();
+        // Split long content into lines for PDF
+        const lines = doc.splitTextToSize(message.content, 180);
+        doc.text(lines, 10, 10);
+        doc.save(`${docType}.pdf`);
+    }
+
+    downloadAsDOCX(index) {
+        const message = this.state.messages[index];
+        if (!message) return;
+        const docType = message.documentType || 'document';
+        const doc = new Document({
+            sections: [
+                {
+                    properties: {},
+                    children: [
+                        new Paragraph({
+                            children: [new TextRun(message.content)],
+                        }),
+                    ],
+                },
+            ],
+        });
+        Packer.toBlob(doc).then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${docType}.docx`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+    }
 }
